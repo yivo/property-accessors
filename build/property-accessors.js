@@ -1,109 +1,155 @@
-(function() {
-  (function(root, factory) {
-    if (typeof define === 'function' && define.amd) {
-      define(['lodash'], function(_) {
-        return root.PropertyAccessors = factory(root, _);
-      });
-    } else if (typeof module === 'object' && typeof module.exports === 'object') {
-      module.exports = factory(root, require('lodash'));
-    } else {
-      root.PropertyAccessors = factory(root, root._);
+(function(root, factory) {
+  if (typeof define === 'function' && define.amd) {
+    define(['lodash', 'yess'], function(_) {
+      return root.PropertyAccessors = factory(root, _);
+    });
+  } else if (typeof module === 'object' && typeof module.exports === 'object') {
+    module.exports = factory(root, require('lodash'), require('yess'));
+  } else {
+    root.PropertyAccessors = factory(root, root._);
+  }
+})(this, function(__root__, _) {
+  var PropertyAccessors, createAccessor, inlineGet, inlineSet, instanceGet, instanceSet, isAccessor, isEqual, isNoisy, k, len1, markAccessor, notifyPropertyChanged, prop, ref, ref1, wasConstructed;
+  isNoisy = ((ref = __root__.PublisherSubscriber) != null ? ref.isNoisy : void 0) || function(options) {
+    return options !== false && (options != null ? options.silent : void 0) !== true;
+  };
+  isAccessor = function(arg) {
+    return typeof arg === 'function' && !!arg.__accessor__;
+  };
+  wasConstructed = _.wasConstructed, isEqual = _.isEqual;
+  inlineGet = function(path) {
+    var i, j, len, obj, prop, val;
+    obj = this;
+    len = path.length;
+    i = -1;
+    j = 0;
+    while (++i <= len && (obj != null)) {
+      if (i === len || path[i] === '.') {
+        if (j > 0) {
+          prop = path.slice(i - j, i);
+          val = obj[prop];
+          obj = isAccessor(val) ? obj[prop]() : val;
+          if (obj == null) {
+            return obj;
+          }
+          j = 0;
+        }
+      } else {
+        ++j;
+      }
     }
-  })(this, function(root, _) {
-    var createAccessor, createReader, createWriter, get, isFunction;
-    isFunction = _.isFunction;
-    get = function(obj, path) {
-      var _obj, i, j, len, prop;
-      _obj = this;
-      len = path.length;
-      i = -1;
-      j = 0;
-      while (++i <= len && (_obj != null)) {
-        if (i === len || path[i] === '.') {
-          if (j > 0) {
-            prop = path.slice(i - j, i);
-            _obj = typeof _obj[prop] === 'function' ? _obj[prop]() : _obj[prop];
-            if (_obj == null) {
-              return _obj;
-            }
-            j = 0;
-          }
-        } else {
-          ++j;
+    if (i > 0) {
+      return obj;
+    }
+  };
+  inlineSet = function(path, val) {
+    var i, obj, prop;
+    i = path.lastIndexOf('.');
+    if (i > -1) {
+      obj = instanceGet(this, path.slice(0, i));
+      prop = path.slice(i + 1);
+    } else {
+      obj = this;
+      prop = path;
+    }
+    if (obj != null) {
+      if (isAccessor(obj[prop])) {
+        switch (arguments.length - 2) {
+          case 0:
+            obj[prop](val);
+            break;
+          case 1:
+            obj[prop](val, arguments[2]);
+            break;
+          case 2:
+            obj[prop](val, arguments[2], arguments[3]);
+            break;
+          case 3:
+            obj[prop](val, arguments[2], arguments[3], arguments[4]);
         }
+      } else {
+        obj[prop] = val;
       }
-      if (i > 0) {
-        return _obj;
-      }
-    };
-    createAccessor = function(klass, name) {};
-    createWriter = function(klass, name) {};
-    createReader = function(klass, name) {
-      var base, prop;
-      prop = '_' + name;
-      return (base = klass.prototype)[name] || (base[name] = function() {
-        return this[prop];
-      });
-    };
-    return {
-      InstanceMembers: {
-        get: function(path) {
-          return get(this, path);
-        },
-        set: function(path, val) {
-          var i, obj, prop;
-          i = path.lastIndexOf('.');
-          if (i > -1) {
-            obj = get(this, path.slice(0, i));
-            prop = path.slice(i + 1);
-          } else {
-            obj = this;
-            prop = path;
-          }
-          if (obj != null) {
-            if (typeof obj[prop] === 'function') {
-              switch (arguments.length - 2) {
-                case 0:
-                  obj[prop](val);
-                  break;
-                case 1:
-                  obj[prop](val, arguments[3]);
-                  break;
-                case 2:
-                  obj[prop](val, arguments[3], arguments[4]);
-                  break;
-                case 3:
-                  obj[prop](val, arguments[3], arguments[4], arguments[5]);
-                  break;
-                case 4:
-                  obj[prop](val, arguments[3], arguments[4], arguments[5], arguments[6]);
-              }
-            } else {
-              obj[prop] = val;
-            }
-          }
-          return this;
+    }
+    return this;
+  };
+  instanceGet = function(obj, path) {
+    return inlineGet.call(obj, path);
+  };
+  instanceSet = function(obj, path, val) {
+    switch (arguments.length - 3) {
+      case 0:
+        return inlineSet.call(obj, path, val);
+      case 1:
+        return inlineSet.call(obj, path, val, arguments[3]);
+      case 2:
+        return inlineSet.call(obj, path, val, arguments[3], arguments[4]);
+      case 3:
+        return inlineSet.call(obj, path, val, arguments[3], arguments[4], arguments[5]);
+    }
+  };
+  createAccessor = function(obj, prop, options) {
+    obj[prop] = function(nval, options) {
+      var changed, cval, props;
+      props = this._properties;
+      cval = props != null ? props[prop] : void 0;
+      if (arguments.length > 0) {
+        changed = !props ? nval !== void 0 : wasConstructed(nval) ? nval !== cval : !isEqual(cval, nval);
+        if (changed) {
+          (this._previousProperties || (this._previousProperties = {}))[prop] = cval;
+          (props || (this._properties = {}))[prop] = nval;
+          notifyPropertyChanged(this, prop, nval, options);
         }
-      },
-      ClassMembers: {
-        property: function(name, options) {
-          var action, readable, writable;
-          if (typeof this.param === "function") {
-            this.param(name, options);
-          }
-          readable = (options != null ? options.readable : void 0) !== false;
-          writable = (options != null ? options.writable : void 0) !== false;
-          action = readable && writable ? createAccessor : readable ? createReader : writable ? createWriter : void 0;
-          if (action) {
-            action(this, (options != null ? options.as : void 0) || name.slice(name.lastIndexOf('.') + 1));
-            if (options != null ? options.alias : void 0) {
-              action(this, options.alias);
-            }
-          }
-          return this;
-        }
+        return this;
+      } else {
+        return cval;
       }
     };
-  });
-
-}).call(this);
+  };
+  notifyPropertyChanged = function(obj, prop, value, options) {
+    var base;
+    isNoisy(options) && (typeof (base = obj.notify || obj.trigger) === "function" ? base(prop + 'Change', obj, value) : void 0);
+  };
+  markAccessor = function(obj, prop, options) {
+    if (typeof obj[prop] === 'function') {
+      obj[prop].__accessor__ = true;
+    }
+  };
+  PropertyAccessors = {
+    get: instanceGet,
+    set: instanceSet,
+    property: function(obj, prop, options) {
+      createAccessor(obj, prop, options);
+      return markAccessor(obj, prop, options);
+    },
+    mark: function(obj, prop, options) {
+      return markAccessor(obj, prop, options);
+    }
+  };
+  PropertyAccessors.InstanceMembers = {
+    get: inlineGet,
+    set: inlineSet,
+    properties: function() {
+      return this._properties || (this._properties = {});
+    },
+    previousProperties: function() {
+      return this._previousProperties || (this._previousProperties = {});
+    },
+    previous: function(prop) {
+      var ref1;
+      return (ref1 = this._previousProperties) != null ? ref1[prop] : void 0;
+    }
+  };
+  ref1 = ['properties', 'previousProperties', 'previous'];
+  for (k = 0, len1 = ref1.length; k < len1; k++) {
+    prop = ref1[k];
+    markAccessor(PropertyAccessors.InstanceMembers, prop);
+  }
+  PropertyAccessors.ClassMembers = {
+    property: function(prop, options) {
+      PropertyAccessors.property(this.prototype, prop, options);
+      return this;
+    }
+  };
+  return PropertyAccessors;
+});

@@ -1,78 +1,124 @@
-{isFunction} = _
+# Support for PublisherSubscriber and Backbone
+isNoisy = __root__.PublisherSubscriber?.isNoisy or (options) ->
+  options isnt false and options?.silent isnt true
 
-get = (obj, path) ->
-  _obj = this
+isAccessor = (arg) ->
+  typeof arg is 'function' and !!arg.__accessor__
+
+{wasConstructed, isEqual} = _
+
+inlineGet = (path) ->
+  obj  = this
   len  = path.length
   i    = -1
   j    = 0
 
-  while ++i <= len and _obj?
+  while ++i <= len and obj?
     if i is len or path[i] is '.'
       if j > 0
         prop = path[i - j...i]
-        _obj = if typeof _obj[prop] is 'function'
-          _obj[prop]()
-        else
-          _obj[prop]
-
-        return _obj if not _obj?
+        val  = obj[prop]
+        obj  = if isAccessor(val) then obj[prop]() else val
+        return obj if not obj?
         j = 0
     else ++j
 
-  _obj if i > 0
+  obj if i > 0
 
-createAccessor = (klass, name) ->
+inlineSet = (path, val) ->
+  i = path.lastIndexOf('.')
 
-createWriter = (klass, name) ->
+  if i > -1
+    obj  = instanceGet(this, path.slice(0, i))
+    prop = path.slice(i + 1)
+  else
+    obj  = this
+    prop = path
 
-createReader = (klass, name) ->
-  prop = '_' + name
-  klass::[name] ||= -> this[prop]
-
-InstanceMembers:
-
-  get: (path) ->
-    get(this, path)
-
-  set: (path, val) ->
-    i = path.lastIndexOf('.')
-
-    if i > -1
-      obj  = get(this, path.slice(0, i))
-      prop = path.slice(i + 1)
+  if obj?
+    if isAccessor(obj[prop])
+      switch arguments.length - 2
+        when 0 then obj[prop](val)
+        when 1 then obj[prop](val, arguments[2])
+        when 2 then obj[prop](val, arguments[2], arguments[3])
+        when 3 then obj[prop](val, arguments[2], arguments[3], arguments[4])
     else
-      obj  = this
-      prop = path
+      obj[prop] = val
+  this
 
-    if obj?
-      if typeof obj[prop] is 'function'
-        switch arguments.length - 2
-          when 0 then obj[prop](val)
-          when 1 then obj[prop](val, arguments[3])
-          when 2 then obj[prop](val, arguments[3], arguments[4])
-          when 3 then obj[prop](val, arguments[3], arguments[4], arguments[5])
-          when 4 then obj[prop](val, arguments[3], arguments[4], arguments[5], arguments[6])
-      else
-        obj[prop] = val
-    this
+instanceGet = (obj, path) ->
+  inlineGet.call(obj, path)
 
-ClassMembers:
+instanceSet = (obj, path, val) ->
+  switch arguments.length - 3
+    when 0
+      inlineSet.call(obj, path, val)
+    when 1
+      inlineSet.call(obj, path, val, arguments[3])
+    when 2
+      inlineSet.call(obj, path, val, arguments[3], arguments[4])
+    when 3
+      inlineSet.call(obj, path, val, arguments[3], arguments[4], arguments[5])
 
-  property: (name, options) ->
-    # Add support for Strict Parameters Concern
-    @param?(name, options)
+createAccessor = (obj, prop, options) ->
+  obj[prop] = (nval, options) ->
+    props = @_properties
+    cval  = props?[prop]
+    if arguments.length > 0
+      changed = if not props
+        nval isnt undefined
+      else if wasConstructed(nval)
+        nval isnt cval
+      else not isEqual(cval, nval)
 
-    readable  = options?.readable isnt false
-    writable  = options?.writable isnt false
+      if changed
+        (@_previousProperties ||= {})[prop]  = cval
+        (props or (@_properties = {}))[prop] = nval
+        notifyPropertyChanged(this, prop, nval, options)
+      this
+    else cval
+  return
 
-    action = if readable and writable
-      createAccessor
-    else if readable
-      createReader
-    else if writable
-      createWriter
+notifyPropertyChanged = (obj, prop, value, options) ->
+  # Both PublisherSubscriber and Backbone support
+  isNoisy(options) and (obj.notify or obj.trigger)?(prop + 'Change', obj, value)
+  return
 
-    if action
-      action(this, options?.as or name.slice(name.lastIndexOf('.') + 1))
-      action(this, options.alias) if options?.alias
+markAccessor = (obj, prop, options) ->
+  if typeof obj[prop] is 'function'
+    obj[prop].__accessor__ = true
+  return
+
+PropertyAccessors =
+
+  get: instanceGet
+  set: instanceSet
+
+  property: (obj, prop, options) ->
+    createAccessor(obj, prop, options)
+    markAccessor(obj, prop, options)
+
+  mark: (obj, prop, options) ->
+    markAccessor(obj, prop, options)
+
+PropertyAccessors.InstanceMembers =
+  get: inlineGet
+  set: inlineSet
+
+  properties: ->
+    @_properties ||= {}
+
+  previousProperties: ->
+    @_previousProperties ||= {}
+
+  previous: (prop) ->
+    @_previousProperties?[prop]
+
+for prop in ['properties', 'previousProperties', 'previous']
+  markAccessor(PropertyAccessors.InstanceMembers, prop)
+
+PropertyAccessors.ClassMembers =
+
+  property: (prop, options) ->
+    PropertyAccessors.property(this.prototype, prop, options)
     this
