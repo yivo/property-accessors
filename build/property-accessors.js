@@ -9,147 +9,121 @@
     root.PropertyAccessors = factory(root, root._);
   }
 })(this, function(__root__, _) {
-  var PropertyAccessors, createAccessor, inlineGet, inlineSet, instanceGet, instanceSet, isAccessor, isEqual, isNoisy, k, len1, markAccessor, notifyPropertyChanged, prop, ref, ref1, wasConstructed;
-  isNoisy = ((ref = __root__.PublisherSubscriber) != null ? ref.isNoisy : void 0) || function(options) {
-    return options !== false && (options != null ? options.silent : void 0) !== true;
+  var API, cap, isEqual, isFunction, isString, wasConstructed;
+  wasConstructed = _.wasConstructed, isEqual = _.isEqual, isFunction = _.isFunction, isString = _.isString;
+  cap = function(s) {
+    return s.charAt(0).toUpperCase() + s.slice(1);
   };
-  isAccessor = function(arg) {
-    return typeof arg === 'function' && !!arg.__accessor__;
+  API = {};
+  API.createDescriptorGetter = function(property) {
+    var getterName;
+    getterName = API.getterName(property);
+    return function() {
+      return this[getterName]();
+    };
   };
-  wasConstructed = _.wasConstructed, isEqual = _.isEqual;
-  inlineGet = function(path) {
-    var i, j, len, obj, prop, val;
-    obj = this;
-    len = path.length;
-    i = -1;
-    j = 0;
-    while (++i <= len && (obj != null)) {
-      if (i === len || path[i] === '.') {
-        if (j > 0) {
-          prop = path.slice(i - j, i);
-          val = obj[prop];
-          obj = isAccessor(val) ? obj[prop]() : val;
-          if (obj == null) {
-            return obj;
+  API.createDescriptorSetter = function(property) {
+    var setterName;
+    setterName = API.setterName(property);
+    return function(value) {
+      return this[setterName](value);
+    };
+  };
+  API.createGetter = function(property) {
+    var privateProperty;
+    privateProperty = API.privateProperty(property);
+    return function() {
+      return this[privateProperty];
+    };
+  };
+  API.createSetter = function(property) {
+    var changeEvent, previousProperty, privateProperty;
+    privateProperty = API.privateProperty(property);
+    previousProperty = API.previousProperty(property);
+    previousProperty = API.privateProperty(previousProperty);
+    changeEvent = API.propertyChangeEvent(property);
+    return function(value, options) {
+      var base, changed, previousValue;
+      previousValue = this[property];
+      changed = wasConstructed(value) ? value !== previousValue : !isEqual(value, previousValue);
+      if (changed) {
+        this[previousProperty] = previousValue;
+        this[privateProperty] = value;
+        if (options !== false && (options != null ? options.silent : void 0) !== true) {
+          if (typeof (base = this.notify || this.trigger) === "function") {
+            base(changeEvent, this, value, previousValue, options);
           }
-          j = 0;
         }
+        return value;
       } else {
-        ++j;
-      }
-    }
-    if (i > 0) {
-      return obj;
-    }
-  };
-  inlineSet = function(path, val) {
-    var i, obj, prop;
-    i = path.lastIndexOf('.');
-    if (i > -1) {
-      obj = instanceGet(this, path.slice(0, i));
-      prop = path.slice(i + 1);
-    } else {
-      obj = this;
-      prop = path;
-    }
-    if (obj != null) {
-      if (isAccessor(obj[prop])) {
-        switch (arguments.length - 2) {
-          case 0:
-            obj[prop](val);
-            break;
-          case 1:
-            obj[prop](val, arguments[2]);
-            break;
-          case 2:
-            obj[prop](val, arguments[2], arguments[3]);
-            break;
-          case 3:
-            obj[prop](val, arguments[2], arguments[3], arguments[4]);
-        }
-      } else {
-        obj[prop] = val;
-      }
-    }
-    return this;
-  };
-  instanceGet = function(obj, path) {
-    return inlineGet.call(obj, path);
-  };
-  instanceSet = function(obj, path, val) {
-    switch (arguments.length - 3) {
-      case 0:
-        return inlineSet.call(obj, path, val);
-      case 1:
-        return inlineSet.call(obj, path, val, arguments[3]);
-      case 2:
-        return inlineSet.call(obj, path, val, arguments[3], arguments[4]);
-      case 3:
-        return inlineSet.call(obj, path, val, arguments[3], arguments[4], arguments[5]);
-    }
-  };
-  createAccessor = function(obj, prop, options) {
-    obj[prop] = function(nval, options) {
-      var changed, cval, props;
-      props = this._properties;
-      cval = props != null ? props[prop] : void 0;
-      if (arguments.length > 0) {
-        changed = !props ? nval !== void 0 : wasConstructed(nval) ? nval !== cval : !isEqual(cval, nval);
-        if (changed) {
-          (this._previousProperties || (this._previousProperties = {}))[prop] = cval;
-          (props || (this._properties = {}))[prop] = nval;
-          notifyPropertyChanged(this, prop, nval, options);
-        }
-        return this;
-      } else {
-        return cval;
+        return previousValue;
       }
     };
   };
-  notifyPropertyChanged = function(obj, prop, value, options) {
-    var base;
-    isNoisy(options) && (typeof (base = obj.notify || obj.trigger) === "function" ? base(prop + 'Change', obj, value) : void 0);
+  API.propertyChangeEvent = function(property) {
+    return 'change' + cap(property);
   };
-  markAccessor = function(obj, prop, options) {
-    if (typeof obj[prop] === 'function') {
-      obj[prop].__accessor__ = true;
+  API.privateProperty = function(property) {
+    return '_' + property;
+  };
+  API.previousProperty = function(property) {
+    return 'previous' + cap(property);
+  };
+  API.getterName = function(property) {
+    return 'get' + cap(property);
+  };
+  API.setterName = function(property) {
+    return 'set' + cap(property);
+  };
+  API.property = function(object, property, options) {
+    var getter, getterName, previousProperty, readonly, setter, setterName, staledGetter, staledSetter;
+    if (!isFunction(options)) {
+      getter = options != null ? options.get : void 0;
+      setter = options != null ? options.set : void 0;
+    } else {
+      getter = options;
     }
-  };
-  PropertyAccessors = {
-    get: instanceGet,
-    set: instanceSet,
-    property: function(obj, prop, options) {
-      createAccessor(obj, prop, options);
-      return markAccessor(obj, prop, options);
-    },
-    mark: function(obj, prop, options) {
-      return markAccessor(obj, prop, options);
+    if (isString(getter)) {
+      getter = object[getter];
     }
-  };
-  PropertyAccessors.InstanceMembers = {
-    get: inlineGet,
-    set: inlineSet,
-    properties: function() {
-      return this._properties || (this._properties = {});
-    },
-    previousProperties: function() {
-      return this._previousProperties || (this._previousProperties = {});
-    },
-    previous: function(prop) {
-      var ref1;
-      return (ref1 = this._previousProperties) != null ? ref1[prop] : void 0;
+    if (isString(setter) && object[setter] !== false) {
+      setter = object[setter];
     }
-  };
-  ref1 = ['properties', 'previousProperties', 'previous'];
-  for (k = 0, len1 = ref1.length; k < len1; k++) {
-    prop = ref1[k];
-    markAccessor(PropertyAccessors.InstanceMembers, prop);
-  }
-  PropertyAccessors.ClassMembers = {
-    property: function(prop, options) {
-      PropertyAccessors.property(this.prototype, prop, options);
-      return this;
+    readonly = setter === false;
+    if (!isFunction(getter)) {
+      getter = null;
     }
+    if (readonly || !isFunction(setter)) {
+      setter = null;
+    }
+    getterName = API.getterName(property);
+    setterName = API.setterName(property);
+    staledGetter = object[getterName];
+    staledSetter = object[setterName];
+    if (!isFunction(staledGetter)) {
+      staledGetter = null;
+    }
+    if (!isFunction(staledSetter)) {
+      staledSetter = null;
+    }
+    object[getterName] = getter || staledGetter || API.createGetter(property);
+    object[setterName] = readonly ? API.createGetter(property) : object[setterName] = setter || staledSetter || API.createSetter(property);
+    if (!object.hasOwnProperty(property)) {
+      Object.defineProperty(object, property, {
+        get: API.createDescriptorGetter(property),
+        set: API.createDescriptorSetter(property)
+      });
+      previousProperty = API.previousProperty(property);
+      Object.defineProperty(object, previousProperty, {
+        get: API.createGetter(previousProperty)
+      });
+    }
+    return API;
   };
-  return PropertyAccessors;
+  Object.defineProperty(Function.prototype, 'property', {
+    value: function(property, options) {
+      return API.property(this.prototype, property, options);
+    }
+  });
+  return API;
 });

@@ -8,129 +8,112 @@
     root.PropertyAccessors = factory(root, root._)
   return
 )(this, (__root__, _) ->
-  # Support for PublisherSubscriber and Backbone
-  isNoisy = __root__.PublisherSubscriber?.isNoisy or (options) ->
-    options isnt false and options?.silent isnt true
+  {wasConstructed, isEqual, isFunction, isString} = _
   
-  isAccessor = (arg) ->
-    typeof arg is 'function' and !!arg.__accessor__
+  cap = (s) ->
+    s.charAt(0).toUpperCase() + s.slice(1)
   
-  {wasConstructed, isEqual} = _
+  API = {}
   
-  inlineGet = (path) ->
-    obj  = this
-    len  = path.length
-    i    = -1
-    j    = 0
+  API.createDescriptorGetter = (property) ->
+    getterName = API.getterName(property)
+    ->
+      this[getterName]()
   
-    while ++i <= len and obj?
-      if i is len or path[i] is '.'
-        if j > 0
-          prop = path[i - j...i]
-          val  = obj[prop]
-          obj  = if isAccessor(val) then obj[prop]() else val
-          return obj if not obj?
-          j = 0
-      else ++j
+  API.createDescriptorSetter = (property) ->
+    setterName = API.setterName(property)
+    (value) ->
+      this[setterName](value)
   
-    obj if i > 0
+  API.createGetter = (property) ->
+    privateProperty = API.privateProperty(property)
+    ->
+      this[privateProperty]
   
-  inlineSet = (path, val) ->
-    i = path.lastIndexOf('.')
+  API.createSetter = (property) ->
+    privateProperty  = API.privateProperty(property)
+    previousProperty = API.previousProperty(property)
+    previousProperty = API.privateProperty(previousProperty)
+    changeEvent      = API.propertyChangeEvent(property)
   
-    if i > -1
-      obj  = instanceGet(this, path.slice(0, i))
-      prop = path.slice(i + 1)
-    else
-      obj  = this
-      prop = path
+    (value, options) ->
+      # Get current value by accessing getter not directly
+      previousValue = this[property]
   
-    if obj?
-      if isAccessor(obj[prop])
-        switch arguments.length - 2
-          when 0 then obj[prop](val)
-          when 1 then obj[prop](val, arguments[2])
-          when 2 then obj[prop](val, arguments[2], arguments[3])
-          when 3 then obj[prop](val, arguments[2], arguments[3], arguments[4])
+      changed = if wasConstructed(value)
+        # Custom objects, created with new, compare by strict equality
+        value isnt previousValue
+  
+        # Other objects compare by value
+      else !isEqual(value, previousValue)
+  
+      if changed
+        this[previousProperty] = previousValue
+        this[privateProperty]  = value
+        if options isnt false and options?.silent isnt true
+          (@notify or @trigger)?(changeEvent, this, value, previousValue, options)
+        value
       else
-        obj[prop] = val
-    this
+        previousValue
   
-  instanceGet = (obj, path) ->
-    inlineGet.call(obj, path)
+  API.propertyChangeEvent = (property) ->
+    'change' + cap(property)
   
-  instanceSet = (obj, path, val) ->
-    switch arguments.length - 3
-      when 0
-        inlineSet.call(obj, path, val)
-      when 1
-        inlineSet.call(obj, path, val, arguments[3])
-      when 2
-        inlineSet.call(obj, path, val, arguments[3], arguments[4])
-      when 3
-        inlineSet.call(obj, path, val, arguments[3], arguments[4], arguments[5])
+  API.privateProperty = (property) ->
+    '_' + property
   
-  createAccessor = (obj, prop, options) ->
-    obj[prop] = (nval, options) ->
-      props = @_properties
-      cval  = props?[prop]
-      if arguments.length > 0
-        changed = if not props
-          nval isnt undefined
-        else if wasConstructed(nval)
-          nval isnt cval
-        else not isEqual(cval, nval)
+  API.previousProperty = (property) ->
+    'previous' + cap(property)
   
-        if changed
-          (@_previousProperties ||= {})[prop]  = cval
-          (props or (@_properties = {}))[prop] = nval
-          notifyPropertyChanged(this, prop, nval, options)
-        this
-      else cval
-    return
+  API.getterName = (property) ->
+    'get' + cap(property)
   
-  notifyPropertyChanged = (obj, prop, value, options) ->
-    # Both PublisherSubscriber and Backbone support
-    isNoisy(options) and (obj.notify or obj.trigger)?(prop + 'Change', obj, value)
-    return
+  API.setterName = (property) ->
+    'set' + cap(property)
   
-  markAccessor = (obj, prop, options) ->
-    if typeof obj[prop] is 'function'
-      obj[prop].__accessor__ = true
-    return
+  API.property = (object, property, options) ->
+    if not isFunction(options)
+      getter = options?.get
+      setter = options?.set
+    else
+      getter = options
   
-  PropertyAccessors =
+    getter       = object[getter] if isString(getter)
+    setter       = object[setter] if isString(setter) and object[setter] isnt false
+    readonly     = setter is false
   
-    get: instanceGet
-    set: instanceSet
+    getter       = null unless isFunction(getter)
+    setter       = null if readonly or not isFunction(setter)
   
-    property: (obj, prop, options) ->
-      createAccessor(obj, prop, options)
-      markAccessor(obj, prop, options)
+    getterName   = API.getterName(property)
+    setterName   = API.setterName(property)
   
-    mark: (obj, prop, options) ->
-      markAccessor(obj, prop, options)
+    staledGetter = object[getterName]
+    staledSetter = object[setterName]
+    staledGetter = null unless isFunction(staledGetter)
+    staledSetter = null unless isFunction(staledSetter)
   
-  PropertyAccessors.InstanceMembers =
-    get: inlineGet
-    set: inlineSet
+    object[getterName] = getter or staledGetter or API.createGetter(property)
   
-    properties: ->
-      @_properties ||= {}
+    object[setterName] = if readonly
+      API.createGetter(property)
+    else
+      object[setterName] = setter or staledSetter or API.createSetter(property)
   
-    previousProperties: ->
-      @_previousProperties ||= {}
+    unless object.hasOwnProperty(property)
+      Object.defineProperty(object, property,
+        get: API.createDescriptorGetter(property)
+        set: API.createDescriptorSetter(property)
+      )
+      previousProperty = API.previousProperty(property)
+      Object.defineProperty(object, previousProperty,
+        get: API.createGetter(previousProperty)
+      )
   
-    previous: (prop) ->
-      @_previousProperties?[prop]
+    API
   
-  for prop in ['properties', 'previousProperties', 'previous']
-    markAccessor(PropertyAccessors.InstanceMembers, prop)
-  
-  PropertyAccessors.ClassMembers =
-  
-    property: (prop, options) ->
-      PropertyAccessors.property(this.prototype, prop, options)
-      this
-  PropertyAccessors
+  Object.defineProperty Function::, 'property',
+    value: (property, options) ->
+      API.property(this.prototype, property, options)
+  API
 )

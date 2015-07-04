@@ -1,13 +1,14 @@
-gulp        = require 'gulp'
-connect     = require 'gulp-connect'
-concat      = require 'gulp-concat'
-coffee      = require 'gulp-coffee'
-preprocess  = require 'gulp-preprocess'
-iife        = require 'gulp-iife'
-uglify      = require 'gulp-uglify'
-rename      = require 'gulp-rename'
-del         = require 'del'
-plumber     = require 'gulp-plumber'
+gulp = require('gulp')
+require('gulp-lazyload')
+  connect:    'gulp-connect'
+  concat:     'gulp-concat'
+  coffee:     'gulp-coffee'
+  preprocess: 'gulp-preprocess'
+  iife:       'gulp-iife'
+  uglify:     'gulp-uglify'
+  rename:     'gulp-rename'
+  del:        'del'
+  plumber:    'gulp-plumber'
 
 gulp.task 'default', ['build', 'watch'], ->
 
