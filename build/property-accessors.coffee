@@ -80,7 +80,7 @@
   
     getter       = object[getter] if isString(getter)
     setter       = object[setter] if isString(setter) and object[setter] isnt false
-    readonly     = setter is false
+    readonly     = setter is false or options?.writable is false
   
     getter       = null unless isFunction(getter)
     setter       = null if readonly or not isFunction(setter)

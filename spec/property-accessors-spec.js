@@ -124,7 +124,7 @@ describe('API', function() {
     expect(Person.prototype.getName).toBe(redefinedGetter);
     return expect(Person.prototype.setName.toString()).toBe(PropertyAccessors.createGetter('name').toString());
   });
-  return it('can map accessor by string', function() {
+  it('can map accessor by string', function() {
     var Person, person, ref;
     Person = (function() {
       function Person() {}
@@ -149,5 +149,23 @@ describe('API', function() {
     expect(person.getBiography).toBe(Person.prototype.loadBiography);
     expect((ref = person.biography) != null ? ref.name : void 0).toBe('Jacob');
     return expect(person.setBiography).toBe(Person.prototype.changeBiography);
+  });
+  return it('supports writable option', function() {
+    var Person, person;
+    Person = (function() {
+      function Person() {}
+
+      Person.property('id', {
+        writable: false
+      });
+
+      return Person;
+
+    })();
+    person = new Person();
+    person._id = 1;
+    expect(person.id).toBe(1);
+    person.id = 2;
+    return expect(person.id).toBe(1);
   });
 });

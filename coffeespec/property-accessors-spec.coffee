@@ -91,3 +91,13 @@ describe 'API', ->
     expect(person.getBiography).toBe(Person::loadBiography)
     expect(person.biography?.name).toBe('Jacob')
     expect(person.setBiography).toBe(Person::changeBiography)
+
+  it 'supports writable option', ->
+    class Person
+      @property 'id', writable: no
+
+    person = new Person()
+    person._id = 1
+    expect(person.id).toBe(1)
+    person.id = 2
+    expect(person.id).toBe(1)

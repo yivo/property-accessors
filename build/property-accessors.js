@@ -89,7 +89,7 @@
     if (isString(setter) && object[setter] !== false) {
       setter = object[setter];
     }
-    readonly = setter === false;
+    readonly = setter === false || (options != null ? options.writable : void 0) === false;
     if (!isFunction(getter)) {
       getter = null;
     }
