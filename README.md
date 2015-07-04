@@ -1,2 +1,2 @@
 # property-accessors
-Functional style property accessors for JavaScript
+Property accessors for JavaScript
