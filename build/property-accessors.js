@@ -9,24 +9,40 @@
     root.PropertyAccessors = factory(root, root._);
   }
 })(this, function(__root__, _) {
-  var API, cap, isEqual, isFunction, isString, wasConstructed;
+  var API, cap, getClassName, isEqual, isFunction, isString, mapAccessorByNameFailed, wasConstructed;
   wasConstructed = _.wasConstructed, isEqual = _.isEqual, isFunction = _.isFunction, isString = _.isString;
   cap = function(s) {
     return s.charAt(0).toUpperCase() + s.slice(1);
   };
+  getClassName = function(object) {
+    var ref;
+    if (isFunction(object)) {
+      return object.name;
+    } else {
+      return (object != null ? (ref = object.constructor) != null ? ref.name : void 0 : void 0) || (object != null ? typeof object.toString === "function" ? object.toString() : void 0 : void 0);
+    }
+  };
   API = {};
   API.createDescriptorGetter = function(property) {
-    var getterName;
+    var getterName, privateGetterAPI, privateGetterName;
     getterName = API.getterName(property);
+    privateGetterName = API.privateGetterName(property);
+    privateGetterAPI = function(obj, value, opts) {
+      return obj[privateGetterName](value, opts);
+    };
     return function() {
-      return this[getterName]();
+      return this[getterName](privateGetterAPI);
     };
   };
   API.createDescriptorSetter = function(property) {
-    var setterName;
+    var privateSetterAPI, privateSetterName, setterName;
     setterName = API.setterName(property);
+    privateSetterName = API.privateSetterName(property);
+    privateSetterAPI = function(obj, value, opts) {
+      return obj[privateSetterName](value, opts);
+    };
     return function(value) {
-      return this[setterName](value);
+      return this[setterName](value, void 0, privateSetterAPI);
     };
   };
   API.createGetter = function(property) {
@@ -43,10 +59,9 @@
     previousProperty = API.privateProperty(previousProperty);
     changeEvent = API.propertyChangeEvent(property);
     return function(value, options) {
-      var base, changed, previousValue;
+      var base, previousValue;
       previousValue = this[property];
-      changed = wasConstructed(value) ? value !== previousValue : !isEqual(value, previousValue);
-      if (changed) {
+      if (!API.isEqual(value, previousValue)) {
         this[previousProperty] = previousValue;
         this[privateProperty] = value;
         if (options !== false && (options != null ? options.silent : void 0) !== true) {
@@ -54,11 +69,16 @@
             base(changeEvent, this, value, previousValue, options);
           }
         }
-        return value;
-      } else {
-        return previousValue;
       }
+      return this;
     };
+  };
+  API.isEqual = function(a, b) {
+    if (wasConstructed(a)) {
+      return a === b;
+    } else {
+      return isEqual(a, b);
+    }
   };
   API.propertyChangeEvent = function(property) {
     return 'change' + cap(property);
@@ -75,39 +95,68 @@
   API.setterName = function(property) {
     return 'set' + cap(property);
   };
+  API.privateGetterName = function(property) {
+    return '__get' + cap(property);
+  };
+  API.privateSetterName = function(property) {
+    return '__set' + cap(property);
+  };
+  mapAccessorByNameFailed = function(object, property, type, key, value) {
+    throw new Error("Failed to create property '" + property + "' on " + (getClassName(object)) + ". You specified " + type + " as a string - '" + key + "' but mapped value by this key is not a function. Value - '" + object[key] + "'. You should move property declaration below the '" + key + "' or check declaration options for mistakes.");
+  };
   API.property = function(object, property, options) {
-    var getter, getterName, previousProperty, readonly, setter, setterName, staledGetter, staledSetter;
+    var getter, getterName, key, previousProperty, privateGetterName, privateSetterName, readonly, ref, setter, setterName, staleGetter, staleSetter;
     if (!isFunction(options)) {
       getter = options != null ? options.get : void 0;
       setter = options != null ? options.set : void 0;
     } else {
       getter = options;
+      setter = (arguments.length > 3 && arguments[3]) || false;
     }
-    if (isString(getter)) {
-      getter = object[getter];
+    if (((ref = options != null ? options.readonly : void 0) === true || ref === false) && (options != null ? options.readonly : void 0) === !!(options != null ? options.set : void 0)) {
+      throw new Error("You can't specify both 'readonly' and 'set' options");
     }
-    if (isString(setter) && object[setter] !== false) {
-      setter = object[setter];
+    readonly = setter === false || (options != null ? options.readonly : void 0) === true;
+    if (isString(key = getter)) {
+      if (isFunction(object[key])) {
+        getter = object[key];
+      } else {
+        mapAccessorByNameFailed(object, property, 'getter', key);
+      }
+    } else {
+      if (!isFunction(getter)) {
+        getter = null;
+      }
     }
-    readonly = setter === false || (options != null ? options.writable : void 0) === false;
-    if (!isFunction(getter)) {
-      getter = null;
-    }
-    if (readonly || !isFunction(setter)) {
-      setter = null;
+    if (isString(key = setter)) {
+      if (isFunction(object[key])) {
+        setter = object[key];
+      } else {
+        mapAccessorByNameFailed(object, property, 'setter', key);
+      }
     }
     getterName = API.getterName(property);
     setterName = API.setterName(property);
-    staledGetter = object[getterName];
-    staledSetter = object[setterName];
-    if (!isFunction(staledGetter)) {
-      staledGetter = null;
+    privateGetterName = API.privateGetterName(property);
+    privateSetterName = API.privateSetterName(property);
+    staleGetter = isFunction(object[getterName]) ? object[getterName] : null;
+    staleSetter = isFunction(object[setterName]) ? object[setterName] : null;
+    object[getterName] = getter || staleGetter || API.createGetter(property);
+    if (getter) {
+      object[privateGetterName] || (object[privateGetterName] = API.createGetter(property));
     }
-    if (!isFunction(staledSetter)) {
-      staledSetter = null;
+    if (readonly) {
+      object[setterName] = API.createGetter(property);
+    } else if (setter === true) {
+      object[setterName] = API.createSetter(property);
+    } else {
+      if (isFunction(setter)) {
+        object[setterName] = setter;
+        object[privateSetterName] || (object[privateSetterName] = API.createSetter(property));
+      } else {
+        object[setterName] = staleSetter || API.createSetter(property);
+      }
     }
-    object[getterName] = getter || staledGetter || API.createGetter(property);
-    object[setterName] = readonly ? API.createGetter(property) : object[setterName] = setter || staledSetter || API.createSetter(property);
     if (!object.hasOwnProperty(property)) {
       Object.defineProperty(object, property, {
         get: API.createDescriptorGetter(property),
