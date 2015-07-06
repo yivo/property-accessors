@@ -9,12 +9,12 @@
     root.PropertyAccessors = factory(root, root._);
   }
 })(this, function(__root__, _) {
-  var API, cap, getClassName, isEqual, isFunction, isString, mapAccessorByNameFailed, wasConstructed;
+  var API, cap, className, isEqual, isFunction, isString, mapAccessorByNameFailed, wasConstructed;
   wasConstructed = _.wasConstructed, isEqual = _.isEqual, isFunction = _.isFunction, isString = _.isString;
   cap = function(s) {
     return s.charAt(0).toUpperCase() + s.slice(1);
   };
-  getClassName = function(object) {
+  className = function(object) {
     var ref;
     if (isFunction(object)) {
       return object.name;
@@ -45,16 +45,21 @@
     };
   };
   API.createSetter = function(property) {
-    var changeEvent, previousProperty, privateProperty;
+    var changeEvent, firstChange, previousProperty, privateProperty;
     privateProperty = API.privateProperty(property);
     previousProperty = API.previousProperty(property);
     previousProperty = API.privateProperty(previousProperty);
     changeEvent = API.propertyChangeEvent(property);
+    firstChange = true;
     return function(value, options) {
       var previousValue;
       previousValue = this[property];
       if (!API.isEqual(value, previousValue)) {
-        this[previousProperty] = previousValue;
+        if (!firstChange) {
+          this[previousProperty] = previousValue;
+        } else {
+          firstChange = false;
+        }
         this[privateProperty] = value;
         if (options !== false && (options != null ? options.silent : void 0) !== true) {
           if (typeof this.notify === "function") {
@@ -94,7 +99,7 @@
     return 'defaultSet' + cap(property);
   };
   mapAccessorByNameFailed = function(object, property, type, key, value) {
-    throw new Error("Failed to create property '" + property + "' on " + (getClassName(object)) + ". You specified " + type + " as a string - '" + key + "' but mapped value by this key is not a function. Value - '" + object[key] + "'. You should move property declaration below the '" + key + "' or check declaration options for mistakes.");
+    throw new Error("Failed to create property '" + property + "' on " + (className(object)) + ". You specified " + type + " as a string - '" + key + "' but mapped value by this key is not a function. Value - '" + object[key] + "'. You should move property declaration below the '" + key + "' or check declaration options for mistakes.");
   };
   API.property = function(object, property, options) {
     var defaultGetterName, defaultSetterName, getter, getterName, key, previousProperty, readonly, ref, setter, setterName, staleGetter, staleSetter;

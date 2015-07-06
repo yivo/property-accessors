@@ -13,7 +13,7 @@
   cap = (s) ->
     s.charAt(0).toUpperCase() + s.slice(1)
   
-  getClassName = (object) ->
+  className = (object) ->
     if isFunction(object)
       object.name
     else
@@ -41,13 +41,17 @@
     previousProperty = API.previousProperty(property)
     previousProperty = API.privateProperty(previousProperty)
     changeEvent      = API.propertyChangeEvent(property)
+    firstChange      = yes
   
     (value, options) ->
       # Get current value by accessing getter not directly
       previousValue = this[property]
   
       unless API.isEqual(value, previousValue)
-        this[previousProperty] = previousValue
+        if not firstChange
+          this[previousProperty] = previousValue
+        else
+          firstChange = no
         this[privateProperty]  = value
         if options isnt false and options?.silent isnt true
           @notify?(changeEvent, this, value, previousValue, options)
@@ -84,7 +88,7 @@
   
   mapAccessorByNameFailed = (object, property, type, key, value) ->
     throw new Error "
-        Failed to create property '#{property}' on #{getClassName(object)}.
+        Failed to create property '#{property}' on #{className(object)}.
         You specified #{type} as a string - '#{key}' but mapped value by this key
         is not a function. Value - '#{object[key]}'.
         You should move property declaration below the '#{key}'
