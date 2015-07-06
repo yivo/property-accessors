@@ -120,12 +120,12 @@ describe 'PropertyAccessors', ->
 
   it 'provides default actions in custom accessors', ->
     customNameSetter = (name, options, set) ->
-      expectFunction(set)
-      set(this, name, options) if name
+      expectFunction(@defaultSetName)
+      @defaultSetName(name, options) if name
       this
 
     class Person
-      customNameGetter: (get) -> get(this)
+      customNameGetter: -> @defaultGetName(this)
 
       @property 'name',
         set: customNameSetter

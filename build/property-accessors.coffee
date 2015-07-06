@@ -22,24 +22,14 @@
   API = {}
   
   API.createDescriptorGetter = (property) ->
-    getterName        = API.getterName(property)
-    privateGetterName = API.privateGetterName(property)
-  
-    privateGetterAPI = (obj, value, opts) ->
-      obj[privateGetterName](value, opts)
-  
+    getterName = API.getterName(property)
     ->
-      this[getterName](privateGetterAPI)
+      this[getterName]()
   
   API.createDescriptorSetter = (property) ->
-    setterName        = API.setterName(property)
-    privateSetterName = API.privateSetterName(property)
-  
-    privateSetterAPI = (obj, value, opts) ->
-      obj[privateSetterName](value, opts)
-  
+    setterName = API.setterName(property)
     (value) ->
-      this[setterName](value, undefined, privateSetterAPI)
+      this[setterName](value)
   
   API.createGetter = (property) ->
     privateProperty = API.privateProperty(property)
@@ -60,7 +50,7 @@
         this[previousProperty] = previousValue
         this[privateProperty]  = value
         if options isnt false and options?.silent isnt true
-          (@notify or @trigger)?(changeEvent, this, value, previousValue, options)
+          @notify?(changeEvent, this, value, previousValue, options)
       this
   
   API.isEqual = (a, b) ->
@@ -72,7 +62,7 @@
     else isEqual(a, b)
   
   API.propertyChangeEvent = (property) ->
-    'change' + cap(property)
+    property + 'Change'
   
   API.privateProperty = (property) ->
     '_' + property
@@ -86,11 +76,11 @@
   API.setterName = (property) ->
     'set' + cap(property)
   
-  API.privateGetterName = (property) ->
-    '__get' + cap(property)
+  API.defaultGetterName = (property) ->
+    'defaultGet' + cap(property)
   
-  API.privateSetterName = (property) ->
-    '__set' + cap(property)
+  API.defaultSetterName = (property) ->
+    'defaultSet' + cap(property)
   
   mapAccessorByNameFailed = (object, property, type, key, value) ->
     throw new Error "
@@ -142,8 +132,8 @@
     setterName = API.setterName(property)
   
     # Private accessors names
-    privateGetterName = API.privateGetterName(property)
-    privateSetterName = API.privateSetterName(property)
+    defaultGetterName = API.defaultGetterName(property)
+    defaultSetterName = API.defaultSetterName(property)
   
     # Current public accessors
     staleGetter = if isFunction(object[getterName]) then object[getterName] else null
@@ -153,7 +143,7 @@
     object[getterName] = getter or staleGetter or API.createGetter(property)
   
     # Create and set private getter if custom getter given
-    object[privateGetterName] ||= API.createGetter(property) if getter
+    object[defaultGetterName] ||= API.createGetter(property) if getter
   
     # Set setter
     if readonly
@@ -163,7 +153,7 @@
     else
       if isFunction(setter)
         object[setterName] = setter
-        object[privateSetterName] ||= API.createSetter(property)
+        object[defaultSetterName] ||= API.createSetter(property)
       else
         object[setterName] = staleSetter or API.createSetter(property)
   

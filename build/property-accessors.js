@@ -24,25 +24,17 @@
   };
   API = {};
   API.createDescriptorGetter = function(property) {
-    var getterName, privateGetterAPI, privateGetterName;
+    var getterName;
     getterName = API.getterName(property);
-    privateGetterName = API.privateGetterName(property);
-    privateGetterAPI = function(obj, value, opts) {
-      return obj[privateGetterName](value, opts);
-    };
     return function() {
-      return this[getterName](privateGetterAPI);
+      return this[getterName]();
     };
   };
   API.createDescriptorSetter = function(property) {
-    var privateSetterAPI, privateSetterName, setterName;
+    var setterName;
     setterName = API.setterName(property);
-    privateSetterName = API.privateSetterName(property);
-    privateSetterAPI = function(obj, value, opts) {
-      return obj[privateSetterName](value, opts);
-    };
     return function(value) {
-      return this[setterName](value, void 0, privateSetterAPI);
+      return this[setterName](value);
     };
   };
   API.createGetter = function(property) {
@@ -59,14 +51,14 @@
     previousProperty = API.privateProperty(previousProperty);
     changeEvent = API.propertyChangeEvent(property);
     return function(value, options) {
-      var base, previousValue;
+      var previousValue;
       previousValue = this[property];
       if (!API.isEqual(value, previousValue)) {
         this[previousProperty] = previousValue;
         this[privateProperty] = value;
         if (options !== false && (options != null ? options.silent : void 0) !== true) {
-          if (typeof (base = this.notify || this.trigger) === "function") {
-            base(changeEvent, this, value, previousValue, options);
+          if (typeof this.notify === "function") {
+            this.notify(changeEvent, this, value, previousValue, options);
           }
         }
       }
@@ -81,7 +73,7 @@
     }
   };
   API.propertyChangeEvent = function(property) {
-    return 'change' + cap(property);
+    return property + 'Change';
   };
   API.privateProperty = function(property) {
     return '_' + property;
@@ -95,17 +87,17 @@
   API.setterName = function(property) {
     return 'set' + cap(property);
   };
-  API.privateGetterName = function(property) {
-    return '__get' + cap(property);
+  API.defaultGetterName = function(property) {
+    return 'defaultGet' + cap(property);
   };
-  API.privateSetterName = function(property) {
-    return '__set' + cap(property);
+  API.defaultSetterName = function(property) {
+    return 'defaultSet' + cap(property);
   };
   mapAccessorByNameFailed = function(object, property, type, key, value) {
     throw new Error("Failed to create property '" + property + "' on " + (getClassName(object)) + ". You specified " + type + " as a string - '" + key + "' but mapped value by this key is not a function. Value - '" + object[key] + "'. You should move property declaration below the '" + key + "' or check declaration options for mistakes.");
   };
   API.property = function(object, property, options) {
-    var getter, getterName, key, previousProperty, privateGetterName, privateSetterName, readonly, ref, setter, setterName, staleGetter, staleSetter;
+    var defaultGetterName, defaultSetterName, getter, getterName, key, previousProperty, readonly, ref, setter, setterName, staleGetter, staleSetter;
     if (!isFunction(options)) {
       getter = options != null ? options.get : void 0;
       setter = options != null ? options.set : void 0;
@@ -137,13 +129,13 @@
     }
     getterName = API.getterName(property);
     setterName = API.setterName(property);
-    privateGetterName = API.privateGetterName(property);
-    privateSetterName = API.privateSetterName(property);
+    defaultGetterName = API.defaultGetterName(property);
+    defaultSetterName = API.defaultSetterName(property);
     staleGetter = isFunction(object[getterName]) ? object[getterName] : null;
     staleSetter = isFunction(object[setterName]) ? object[setterName] : null;
     object[getterName] = getter || staleGetter || API.createGetter(property);
     if (getter) {
-      object[privateGetterName] || (object[privateGetterName] = API.createGetter(property));
+      object[defaultGetterName] || (object[defaultGetterName] = API.createGetter(property));
     }
     if (readonly) {
       object[setterName] = API.createGetter(property);
@@ -152,7 +144,7 @@
     } else {
       if (isFunction(setter)) {
         object[setterName] = setter;
-        object[privateSetterName] || (object[privateSetterName] = API.createSetter(property));
+        object[defaultSetterName] || (object[defaultSetterName] = API.createSetter(property));
       } else {
         object[setterName] = staleSetter || API.createSetter(property);
       }

@@ -221,17 +221,17 @@ describe('PropertyAccessors', function() {
   it('provides default actions in custom accessors', function() {
     var Person, customNameSetter, person;
     customNameSetter = function(name, options, set) {
-      expectFunction(set);
+      expectFunction(this.defaultSetName);
       if (name) {
-        set(this, name, options);
+        this.defaultSetName(name, options);
       }
       return this;
     };
     Person = (function() {
       function Person() {}
 
-      Person.prototype.customNameGetter = function(get) {
-        return get(this);
+      Person.prototype.customNameGetter = function() {
+        return this.defaultGetName(this);
       };
 
       Person.property('name', {
