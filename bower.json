@@ -15,9 +15,7 @@
     "tests",
     "spec",
     "coffeespec",
-    "gulpfile.*",
-    "README.md",
-    "source"
+    "gulpfile.*"
   ],
   "dependencies": {
     "lodash": "~3.10.0"
