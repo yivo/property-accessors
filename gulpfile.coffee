@@ -28,12 +28,6 @@ gulp.task 'build', ->
   .pipe concat('property-accessors.js')
   .pipe gulp.dest('build')
 
-gulp.task 'build-min', ['build'], ->
-  gulp.src('build/property-accessors.js')
-  .pipe uglify()
-  .pipe rename('property-accessors.min.js')
-  .pipe gulp.dest('build')
-
 gulp.task 'watch', ->
   gulp.watch 'source/**/*', ['build']
 

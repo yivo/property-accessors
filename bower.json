@@ -1,0 +1,25 @@
+{
+  "name": "property-accessors",
+  "version": "1.0.0",
+  "homepage": "https://github.com/yivo/property-accessors",
+  "authors": [
+    "Yaroslav Konoplov <yaroslav@inbox.com>"
+  ],
+  "description": "Property accessors for JavaScript",
+  "main": "build/property-accessors.js",
+  "license": "MIT",
+  "ignore": [
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests",
+    "spec",
+    "coffeespec",
+    "gulpfile.*",
+    "README.md",
+    "source"
+  ],
+  "dependencies": {
+    "lodash": "~3.10.0"
+  }
+}
