@@ -18,14 +18,20 @@ dependencies = [
 ]
 
 gulp.task 'build', ->
-  gulp.src('source/manifest.coffee')
+  gulp.src('source/__manifest__.coffee')
   .pipe plumber()
   .pipe preprocess()
   .pipe iife {dependencies, global: 'PropertyAccessors'}
   .pipe concat('property-accessors.coffee')
   .pipe gulp.dest('build')
-  .pipe coffee(bare: yes)
+  .pipe coffee()
   .pipe concat('property-accessors.js')
+  .pipe gulp.dest('build')
+
+gulp.task 'build-min', ['build'], ->
+  gulp.src('build/property-accessors.js')
+  .pipe uglify()
+  .pipe rename('property-accessors.min.js')
   .pipe gulp.dest('build')
 
 gulp.task 'watch', ->

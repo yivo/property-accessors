@@ -1,175 +1,285 @@
-(function(root, factory) {
-  if (typeof define === 'function' && define.amd) {
-    define(['lodash', 'yess'], function(_) {
-      return root.PropertyAccessors = factory(root, _);
-    });
-  } else if (typeof module === 'object' && typeof module.exports === 'object') {
-    module.exports = factory(root, require('lodash'), require('yess'));
-  } else {
-    root.PropertyAccessors = factory(root, root._);
-  }
-})(this, function(__root__, _) {
-  var API, cap, className, isEqual, isFunction, isString, mapAccessorByNameFailed, wasConstructed;
-  wasConstructed = _.wasConstructed, isEqual = _.isEqual, isFunction = _.isFunction, isString = _.isString;
-  cap = function(s) {
-    return s.charAt(0).toUpperCase() + s.slice(1);
-  };
-  className = function(object) {
-    var ref;
-    if (isFunction(object)) {
-      return object.name;
+(function() {
+  var extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
+    hasProp = {}.hasOwnProperty;
+
+  (function(root, factory) {
+    if (typeof define === 'function' && define.amd) {
+      define(['lodash', 'yess'], function(_) {
+        return root.PropertyAccessors = factory(root, _);
+      });
+    } else if (typeof module === 'object' && typeof module.exports === 'object') {
+      module.exports = factory(root, require('lodash'), require('yess'));
     } else {
-      return (object != null ? (ref = object.constructor) != null ? ref.name : void 0 : void 0) || (object != null ? typeof object.toString === "function" ? object.toString() : void 0 : void 0);
+      root.PropertyAccessors = factory(root, root._);
     }
-  };
-  API = {};
-  API.createDescriptorGetter = function(property) {
-    var getterName;
-    getterName = API.getterName(property);
-    return function() {
-      return this[getterName]();
-    };
-  };
-  API.createDescriptorSetter = function(property) {
-    var setterName;
-    setterName = API.setterName(property);
-    return function(value) {
-      return this[setterName](value);
-    };
-  };
-  API.createGetter = function(property) {
-    var privateProperty;
-    privateProperty = API.privateProperty(property);
-    return function() {
-      return this[privateProperty];
-    };
-  };
-  API.createSetter = function(property) {
-    var changeEvent, firstChange, previousProperty, privateProperty;
-    privateProperty = API.privateProperty(property);
-    previousProperty = API.previousProperty(property);
-    previousProperty = API.privateProperty(previousProperty);
-    changeEvent = API.propertyChangeEvent(property);
-    firstChange = true;
-    return function(value, options) {
-      var previousValue;
-      previousValue = this[property];
-      if (!API.isEqual(value, previousValue)) {
-        if (!firstChange) {
-          this[previousProperty] = previousValue;
-        } else {
-          firstChange = false;
-        }
-        this[privateProperty] = value;
-        if (options !== false && (options != null ? options.silent : void 0) !== true) {
-          if (typeof this.notify === "function") {
-            this.notify(changeEvent, this, value, previousValue, options);
+  })(this, function(__root__, _) {
+    var AbstractProperty, ArgumentError, Error, InstanceProperty, PrototypeProperty, ReadonlyPropertyError, comparator, defineProperty, isClass, isFunction, isObject, supportsConst;
+    AbstractProperty = (function() {
+      function AbstractProperty() {}
+
+      AbstractProperty.prototype.build = function() {};
+
+      AbstractProperty.prototype.defineGetter = function() {
+        var fn;
+        if (this.getter) {
+          if (this.options.memo) {
+            eval("fn = (function(computer) {\n       return function fn() {\n         var val = this[\"_" + this.property + "\"];\n         if (val == null) {\n           var ref = this[\"_" + this.property + "\"] = computer.call(this);\n           if (val !== ref) { this.notify(\"change:" + this.property + "\", this, ref, val); }\n           return ref;\n         } else { return val; }\n       }\n     })(this.getter);");
+          } else {
+            fn = (function(computer) {
+              return function() {
+                return computer.call(this);
+              };
+            })(this.getter);
           }
+        } else {
+          eval(" fn = function() { return this[\"_" + this.property + "\"]; } ");
+        }
+        return this.metadata[this.property + "Getter"] = fn;
+      };
+
+      AbstractProperty.prototype.defineSetter = function() {
+        var code;
+        code = " function fn(value) {\nvar old = this[\"_" + this.property + "\"];";
+        if (this.options.readonly) {
+          code += "   if (old != null) {\n  throw new ReadonlyPropertyError(this, \"" + this.property + "\");\n}";
+        }
+        code += "   if (!comparator(value, old)) {\n    this[\"_" + this.property + "\"] = value;\n    this.notify(\"change:" + this.property + "\", this, value, old);\n  }\n}";
+        eval(code);
+        this.metadata["_" + this.property + "Setter"] = fn;
+        return this.metadata[this.property + "Setter"] = this.setter || fn;
+      };
+
+      AbstractProperty.prototype.defineProperty = function() {
+        if (!this.target.hasOwnProperty(this.property)) {
+          return Object.defineProperty(this.target, this.property, {
+            get: this.metadata[this.property + "Getter"],
+            set: this.metadata[this.property + "Setter"]
+          });
+        }
+      };
+
+      AbstractProperty.prototype.toEvents = function(deps) {
+        return _.map(deps, function(el) {
+          return "change:" + el;
+        }).join(' ');
+      };
+
+      return AbstractProperty;
+
+    })();
+    PrototypeProperty = (function(superClass) {
+      extend(PrototypeProperty, superClass);
+
+      function PrototypeProperty(Class, property1, getter, setter, options) {
+        this.Class = Class;
+        this.property = property1;
+        this.getter = getter;
+        this.setter = setter;
+        this.options = options;
+        PrototypeProperty.__super__.constructor.apply(this, arguments);
+        this.prototype = this.Class.prototype;
+        this.target = this.prototype;
+        this.metadata = this.Class.reopenObject(METADATA);
+        this.initializerKey = "property-accessors:events:" + this.property;
+      }
+
+      PrototypeProperty.prototype.build = function() {
+        this.defineGetter();
+        this.defineSetter();
+        this.defineProperty();
+        return this.defineCallback();
+      };
+
+      PrototypeProperty.prototype.defineCallback = function() {
+        var ref;
+        this.Class.deleteInitializer(this.initializerKey);
+        if (this.getter && this.options.memo && ((ref = this.options.dependencies) != null ? ref.length : void 0) > 0) {
+          eval("function fn() {\n  this.on(\"" + (this.toEvents(this.options.dependencies)) + "\", function() {\n    this[\"_" + this.property + "\"] = null;\n    this[\"" + this.property + "\"];\n  });\n}");
+          return this.Class.initializer(this.initializerKey, fn);
+        }
+      };
+
+      return PrototypeProperty;
+
+    })(AbstractProperty);
+    InstanceProperty = (function(superClass) {
+      extend(InstanceProperty, superClass);
+
+      function InstanceProperty(object1, property1, getter, setter, options) {
+        var base;
+        this.object = object1;
+        this.property = property1;
+        this.getter = getter;
+        this.setter = setter;
+        this.options = options;
+        InstanceProperty.__super__.constructor.apply(this, arguments);
+        (base = this.object)[METADATA] || (base[METADATA] = {});
+        this.metadata = this.object[METADATA];
+        this.target = this.object;
+        this.callbackKey = this.property + "Callback";
+      }
+
+      InstanceProperty.prototype.build = function() {
+        this.defineGetter();
+        this.defineSetter();
+        this.defineProperty();
+        return this.defineCallback();
+      };
+
+      InstanceProperty.prototype.defineCallback = function() {
+        var ref;
+        if (this.metadata[this.callbackKey]) {
+          this.object.off(null, this.metadata[this.callbackKey]);
+          delete this.metadata[this.callbackKey];
+        }
+        if (this.getter && this.options.memo && ((ref = this.options.dependencies) != null ? ref.length : void 0) > 0) {
+          eval(" function fn() {\n  this[\"_" + this.property + "\"] = null;\n  this[\"" + this.property + "\"];\n}");
+          this.metadata[this.callbackKey] = fn;
+          return this.object.on(this.toEvents(this.options.dependencies), fn);
+        }
+      };
+
+      return InstanceProperty;
+
+    })(AbstractProperty);
+    Error = (function(superClass) {
+      extend(Error, superClass);
+
+      function Error() {
+        Error.__super__.constructor.call(this, this.message);
+        (typeof Error.captureStackTrace === "function" ? Error.captureStackTrace(this, this.name) : void 0) || (this.stack = new Error().stack);
+      }
+
+      return Error;
+
+    })(__root__.Error);
+    ArgumentError = (function(superClass) {
+      extend(ArgumentError, superClass);
+
+      function ArgumentError() {
+        this.name = 'ArgumentError';
+        this.message = '[PropertyAccessors] Not enough or invalid arguments';
+        ArgumentError.__super__.constructor.apply(this, arguments);
+      }
+
+      return ArgumentError;
+
+    })(Error);
+    ReadonlyPropertyError = (function(superClass) {
+      var wasConstructed;
+
+      extend(ReadonlyPropertyError, superClass);
+
+      wasConstructed = _.wasConstructed;
+
+      function ReadonlyPropertyError(object, property) {
+        var obj;
+        obj = wasConstructed(object) ? object.constructor.name || object : object;
+        this.name = 'ReadonlyPropertyError';
+        this.message = "[PropertyAccessors] Property " + obj + "#" + property + " is readonly";
+        ReadonlyPropertyError.__super__.constructor.apply(this, arguments);
+      }
+
+      return ReadonlyPropertyError;
+
+    })(Error);
+    supportsConst = (function() {
+      try {
+        eval('const BLACKHOLE;');
+        return true;
+      } catch (_error) {
+        return false;
+      }
+    })();
+    if (supportsConst) {
+      eval("const METADATA = '_' + _.generateID();");
+    } else {
+      eval("var METADATA = '_' + _.generateID();");
+    }
+    comparator = (function(arg) {
+      var isEqual, wasConstructed;
+      wasConstructed = arg.wasConstructed, isEqual = arg.isEqual;
+      return function(a, b) {
+        if (wasConstructed(a)) {
+          return a === b;
+        } else {
+          return isEqual(a, b);
+        }
+      };
+    })(_);
+    isFunction = _.isFunction, isClass = _.isClass, isObject = _.isObject;
+    defineProperty = function(object, property, arg1, arg2) {
+      var get, memo, readonly, set;
+      memo = false;
+      readonly = false;
+      switch (arguments.length) {
+        case 2:
+          break;
+        case 3:
+          if (isFunction(arg1)) {
+            get = arg1;
+          } else {
+            if (isObject(arg1)) {
+              get = arg1.get, set = arg1.set, memo = arg1.memo, readonly = arg1.readonly;
+            } else {
+              throw new ArgumentError();
+            }
+          }
+          break;
+        case 4:
+          if (isObject(arg1) && isFunction(arg2)) {
+            get = arg2;
+            memo = arg1.memo, readonly = arg1.readonly;
+          } else {
+            throw new ArgumentError();
+          }
+      }
+      if (!isFunction(get)) {
+        get = null;
+      }
+      if (!isFunction(set)) {
+        set = null;
+      }
+      memo = !!memo;
+      readonly = !!readonly;
+      if (isClass(object)) {
+        return new PrototypeProperty(object, property, get, set, {
+          memo: memo,
+          readonly: readonly
+        }).build();
+      } else {
+        return new InstanceProperty(object, property, get, set, {
+          memo: memo,
+          readonly: readonly
+        }).build();
+      }
+    };
+    return {
+      property: defineProperty,
+      ArgumentError: ArgumentError,
+      ClassMembers: {
+        property: function(property) {
+          var args, idx, len;
+          args = [this];
+          len = arguments.length;
+          idx = -1;
+          while (++idx < len) {
+            args.push(arguments[idx]);
+          }
+          return defineProperty.apply(null, args);
+        }
+      },
+      InstanceMembers: {
+        _get: function(property) {
+          var name;
+          return typeof this[name = "_" + property + "Getter"] === "function" ? this[name]() : void 0;
+        },
+        _set: function(property, value) {
+          var name;
+          return typeof this[name = "_" + property + "Setter"] === "function" ? this[name](value) : void 0;
         }
       }
-      return this;
     };
-  };
-  API.isEqual = function(a, b) {
-    if (wasConstructed(a)) {
-      return a === b;
-    } else {
-      return isEqual(a, b);
-    }
-  };
-  API.propertyChangeEvent = function(property) {
-    return property + 'Change';
-  };
-  API.privateProperty = function(property) {
-    return '_' + property;
-  };
-  API.previousProperty = function(property) {
-    return 'previous' + cap(property);
-  };
-  API.getterName = function(property) {
-    return 'get' + cap(property);
-  };
-  API.setterName = function(property) {
-    return 'set' + cap(property);
-  };
-  API.defaultGetterName = function(property) {
-    return 'defaultGet' + cap(property);
-  };
-  API.defaultSetterName = function(property) {
-    return 'defaultSet' + cap(property);
-  };
-  mapAccessorByNameFailed = function(object, property, type, key, value) {
-    throw new Error("Failed to create property '" + property + "' on " + (className(object)) + ". You specified " + type + " as a string - '" + key + "' but mapped value by this key is not a function. Value - '" + object[key] + "'. You should move property declaration below the '" + key + "' or check declaration options for mistakes.");
-  };
-  API.property = function(object, property, options) {
-    var defaultGetterName, defaultSetterName, getter, getterName, key, previousProperty, readonly, ref, setter, setterName, staleGetter, staleSetter;
-    if (!isFunction(options)) {
-      getter = options != null ? options.get : void 0;
-      setter = options != null ? options.set : void 0;
-    } else {
-      getter = options;
-      setter = (arguments.length > 3 && arguments[3]) || false;
-    }
-    if (((ref = options != null ? options.readonly : void 0) === true || ref === false) && (options != null ? options.readonly : void 0) === !!(options != null ? options.set : void 0)) {
-      throw new Error("You can't specify both 'readonly' and 'set' options");
-    }
-    readonly = setter === false || (options != null ? options.readonly : void 0) === true;
-    if (isString(key = getter)) {
-      if (isFunction(object[key])) {
-        getter = object[key];
-      } else {
-        mapAccessorByNameFailed(object, property, 'getter', key);
-      }
-    } else {
-      if (!isFunction(getter)) {
-        getter = null;
-      }
-    }
-    if (isString(key = setter)) {
-      if (isFunction(object[key])) {
-        setter = object[key];
-      } else {
-        mapAccessorByNameFailed(object, property, 'setter', key);
-      }
-    }
-    getterName = API.getterName(property);
-    setterName = API.setterName(property);
-    defaultGetterName = API.defaultGetterName(property);
-    defaultSetterName = API.defaultSetterName(property);
-    staleGetter = isFunction(object[getterName]) ? object[getterName] : null;
-    staleSetter = isFunction(object[setterName]) ? object[setterName] : null;
-    object[getterName] = getter || staleGetter || API.createGetter(property);
-    if (getter) {
-      object[defaultGetterName] || (object[defaultGetterName] = API.createGetter(property));
-    }
-    if (readonly) {
-      object[setterName] = API.createGetter(property);
-    } else if (setter === true) {
-      object[setterName] = API.createSetter(property);
-    } else {
-      if (isFunction(setter)) {
-        object[setterName] = setter;
-        object[defaultSetterName] || (object[defaultSetterName] = API.createSetter(property));
-      } else {
-        object[setterName] = staleSetter || API.createSetter(property);
-      }
-    }
-    if (!object.hasOwnProperty(property)) {
-      Object.defineProperty(object, property, {
-        get: API.createDescriptorGetter(property),
-        set: API.createDescriptorSetter(property)
-      });
-      previousProperty = API.previousProperty(property);
-      Object.defineProperty(object, previousProperty, {
-        get: API.createGetter(previousProperty)
-      });
-    }
-    return API;
-  };
-  Object.defineProperty(Function.prototype, 'property', {
-    value: function(property, options) {
-      return API.property(this.prototype, property, options);
-    }
   });
-  return API;
-});
+
+}).call(this);

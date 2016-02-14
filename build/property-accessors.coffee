@@ -8,173 +8,251 @@
     root.PropertyAccessors = factory(root, root._)
   return
 )(this, (__root__, _) ->
-  {wasConstructed, isEqual, isFunction, isString} = _
+  class AbstractProperty
   
-  cap = (s) ->
-    s.charAt(0).toUpperCase() + s.slice(1)
+    build: ->
   
-  className = (object) ->
-    if isFunction(object)
-      object.name
-    else
-      object?.constructor?.name or object?.toString?()
-  
-  API = {}
-  
-  API.createDescriptorGetter = (property) ->
-    getterName = API.getterName(property)
-    ->
-      this[getterName]()
-  
-  API.createDescriptorSetter = (property) ->
-    setterName = API.setterName(property)
-    (value) ->
-      this[setterName](value)
-  
-  API.createGetter = (property) ->
-    privateProperty = API.privateProperty(property)
-    ->
-      this[privateProperty]
-  
-  API.createSetter = (property) ->
-    privateProperty  = API.privateProperty(property)
-    previousProperty = API.previousProperty(property)
-    previousProperty = API.privateProperty(previousProperty)
-    changeEvent      = API.propertyChangeEvent(property)
-    firstChange      = yes
-  
-    (value, options) ->
-      # Get current value by accessing getter not directly
-      previousValue = this[property]
-  
-      unless API.isEqual(value, previousValue)
-        if not firstChange
-          this[previousProperty] = previousValue
+    defineGetter: ->
+      if @getter
+        if @options.memo
+          eval """
+            fn = (function(computer) {
+                   return function fn() {
+                     var val = this["_#{@property}"];
+                     if (val == null) {
+                       var ref = this["_#{@property}"] = computer.call(this);
+                       if (val !== ref) { this.notify("change:#{@property}", this, ref, val); }
+                       return ref;
+                     } else { return val; }
+                   }
+                 })(this.getter);
+               """
         else
-          firstChange = no
-        this[privateProperty]  = value
-        if options isnt false and options?.silent isnt true
-          @notify?(changeEvent, this, value, previousValue, options)
-      this
-  
-  API.isEqual = (a, b) ->
-    if wasConstructed(a)
-      # Custom objects, created with new, compare by strict equality
-      a is b
-  
-    # Other objects compare by value
-    else isEqual(a, b)
-  
-  API.propertyChangeEvent = (property) ->
-    property + 'Change'
-  
-  API.privateProperty = (property) ->
-    '_' + property
-  
-  API.previousProperty = (property) ->
-    'previous' + cap(property)
-  
-  API.getterName = (property) ->
-    'get' + cap(property)
-  
-  API.setterName = (property) ->
-    'set' + cap(property)
-  
-  API.defaultGetterName = (property) ->
-    'defaultGet' + cap(property)
-  
-  API.defaultSetterName = (property) ->
-    'defaultSet' + cap(property)
-  
-  mapAccessorByNameFailed = (object, property, type, key, value) ->
-    throw new Error "
-        Failed to create property '#{property}' on #{className(object)}.
-        You specified #{type} as a string - '#{key}' but mapped value by this key
-        is not a function. Value - '#{object[key]}'.
-        You should move property declaration below the '#{key}'
-        or check declaration options for mistakes.
-      "
-  
-  API.property = (object, property, options) ->
-    # Support syntax with options
-    if not isFunction(options)
-      getter = options?.get
-      setter = options?.set
-  
-    # Support syntax with getter and setter as 3rd and 4th arguments
-    else
-      getter = options
-  
-      # Readonly property if no setter given as 4th arguments
-      setter = (arguments.length > 3 and arguments[3]) or false
-  
-    # Arguments validation
-    if options?.readonly in [true, false] and options?.readonly is !!options?.set
-      throw new Error("You can't specify both 'readonly' and 'set' options")
-  
-    # Readonly when setter is false. Also supports `readonly` option
-    readonly = setter is false or options?.readonly is true
-  
-    # Map getter by name
-    if isString(key = getter)
-      if isFunction(object[key])
-        getter = object[key]
+          fn = do (computer = @getter) -> -> computer.call(this)
       else
-        mapAccessorByNameFailed(object, property, 'getter', key)
+        eval """ fn = function() { return this["_#{@property}"]; } """
+  
+      @metadata["#{@property}Getter"] = fn
+  
+    defineSetter: ->
+      code  = """ function fn(value) {
+                    var old = this["_#{@property}"];
+              """
+  
+      code += """   if (old != null) {
+                      throw new ReadonlyPropertyError(this, "#{@property}");
+                    }
+              """ if @options.readonly
+  
+      code += """   if (!comparator(value, old)) {
+                      this["_#{@property}"] = value;
+                      this.notify("change:#{@property}", this, value, old);
+                    }
+                  }
+              """
+      eval(code)
+      @metadata["_#{@property}Setter"] = fn
+      @metadata["#{@property}Setter"]  = @setter or fn
+  
+    defineProperty: ->
+      unless @target.hasOwnProperty(@property)
+        Object.defineProperty @target, @property,
+          get: @metadata["#{@property}Getter"]
+          set: @metadata["#{@property}Setter"]
+  
+    toEvents: (deps) ->
+      _.map(deps, (el) -> "change:#{el}").join(' ')
+  
+  class PrototypeProperty extends AbstractProperty
+    constructor: (@Class, @property, @getter, @setter, @options) ->
+      super
+      @prototype      = @Class.prototype
+      @target         = @prototype
+      @metadata       = @Class.reopenObject(METADATA)
+      @initializerKey = "property-accessors:events:#{@property}"
+  
+    build: ->
+      @defineGetter()
+      @defineSetter()
+      @defineProperty()
+      @defineCallback()
+  
+    defineCallback: ->
+      @Class.deleteInitializer(@initializerKey)
+  
+      if @getter and @options.memo && @options.dependencies?.length > 0
+        eval """
+          function fn() {
+            this.on("#{@toEvents(@options.dependencies)}", function() {
+              this["_#{@property}"] = null;
+              this["#{@property}"];
+            });
+          }
+             """
+        @Class.initializer(@initializerKey, fn)
+  
+  class InstanceProperty extends AbstractProperty
+    constructor: (@object, @property, @getter, @setter, @options) ->
+      super
+      @object[METADATA] ||= {}
+      @metadata        = @object[METADATA]
+      @target          = @object
+      @callbackKey     = "#{@property}Callback"
+  
+    build: ->
+      @defineGetter()
+      @defineSetter()
+      @defineProperty()
+      @defineCallback()
+  
+    defineCallback: ->
+      if @metadata[@callbackKey]
+        @object.off(null, @metadata[@callbackKey])
+        delete @metadata[@callbackKey]
+  
+      if @getter and @options.memo && @options.dependencies?.length > 0
+        eval """ function fn() {
+                   this["_#{@property}"] = null;
+                   this["#{@property}"];
+                 }
+             """
+        @metadata[@callbackKey] = fn
+        @object.on @toEvents(@options.dependencies), fn
+  
+  class Error extends __root__.Error
+    constructor: ->
+      super(@message)
+      Error.captureStackTrace?(this, @name) or (@stack = new Error().stack)
+  
+  class ArgumentError extends Error
+    constructor: ->
+      @name    = 'ArgumentError'
+      @message = '[PropertyAccessors] Not enough or invalid arguments'
+      super
+  
+  class ReadonlyPropertyError extends Error
+  
+    {wasConstructed} = _
+  
+    constructor: (object, property) ->
+      obj = if wasConstructed(object)
+              object.constructor.name or object
+            else
+              object
+  
+      @name    = 'ReadonlyPropertyError'
+      @message = "[PropertyAccessors] Property #{obj}##{property} is readonly"
+      super
+  
+  supportsConst = do ->
+    try
+      eval 'const BLACKHOLE;'
+      true
+    catch
+      false
+  
+  if supportsConst
+    eval """
+      const METADATA = '_' + _.generateID();
+         """
+  else
+    eval """
+      var METADATA = '_' + _.generateID();
+         """
+  
+  comparator = do ({wasConstructed, isEqual} = _) ->
+    (a, b) ->
+      if wasConstructed(a)
+        # Custom objects, created with new, compare by strict equality
+        a is b
+  
+      # Other objects compare by value
+      else isEqual(a, b)
+  
+  # Signature 1:
+  #   property this, 'name'
+  #
+  # Signature 2:
+  #   property this, 'name', set: no
+  #
+  # Signature 3:
+  #   property this, 'name', readonly: yes
+  #
+  # Signature 4:
+  #   property this, 'name', -> 'Tomas'
+  #
+  # Signature 5:
+  #   property this, 'name', get: -> 'Tomas'
+  #
+  # Signature 6:
+  #   property this, 'fullName', depends: ['firstName', 'lastName'], -> "#{@firstName} #{@lastName}"
+  #
+  # Signature 7:
+  #   property this, 'fullName',
+  #     set: (fullName) ->
+  #       [@firstName, @lastName] = fullName.split(/\s+/)
+  #       TODO
+  #     get: -> "#{@firstName} #{@lastName}"
+  #     depends: ['firstName', 'lastName']
+  {isFunction, isClass, isObject} = _
+  defineProperty = (object, property, arg1, arg2) ->
+    memo     = false
+    readonly = false
+  
+    switch arguments.length
+      # Signature: 1
+      when 2 then break
+  
+      # Signature: 2, 3, 4, 5, 7
+      when 3
+  
+        # Signature 4
+        if isFunction(arg1)
+          get = arg1
+  
+        # Signature: 2, 3, 5, 7
+        else
+          if isObject(arg1)
+            {get, set, memo, readonly} = arg1
+  
+          else throw new ArgumentError()
+  
+      # Signature: 6
+      when 4
+        if isObject(arg1) and isFunction(arg2)
+          get = arg2
+          {memo, readonly} = arg1
+  
+        else throw new ArgumentError()
+  
+    get      = null unless isFunction(get)
+    set      = null unless isFunction(set)
+    memo     = !!memo
+    readonly = !!readonly
+  
+    if isClass(object)
+      new PrototypeProperty(object, property, get, set, {memo, readonly}).build()
+  
     else
-      getter = null unless isFunction(getter)
+      new InstanceProperty(object, property, get, set, {memo, readonly}).build()
   
-    # Map setter by name. Skip boolean values. See description below (at `readonly`)
-    if isString(key = setter)
-      if isFunction(object[key])
-        setter = object[key]
-      else
-        mapAccessorByNameFailed(object, property, 'setter', key)
+  property: defineProperty
   
-    # Public accessors names
-    getterName = API.getterName(property)
-    setterName = API.setterName(property)
+  ArgumentError: ArgumentError
   
-    # Private accessors names
-    defaultGetterName = API.defaultGetterName(property)
-    defaultSetterName = API.defaultSetterName(property)
+  ClassMembers:
   
-    # Current public accessors
-    staleGetter = if isFunction(object[getterName]) then object[getterName] else null
-    staleSetter = if isFunction(object[setterName]) then object[setterName] else null
+    property: (property) ->
+      args = [this]
+      len  = arguments.length
+      idx  = -1
+      args.push(arguments[idx]) while ++idx < len
+      defineProperty.apply(null, args)
   
-    # Set custom getter or leave stale getter or create new default getter
-    object[getterName] = getter or staleGetter or API.createGetter(property)
+  InstanceMembers:
   
-    # Create and set private getter if custom getter given
-    object[defaultGetterName] ||= API.createGetter(property) if getter
+    _get: (property) -> this["_#{property}Getter"]?()
+    _set: (property, value) -> this["_#{property}Setter"]?(value)
   
-    # Set setter
-    if readonly
-      object[setterName] = API.createGetter(property)
-    else if setter is true
-      object[setterName] = API.createSetter(property)
-    else
-      if isFunction(setter)
-        object[setterName] = setter
-        object[defaultSetterName] ||= API.createSetter(property)
-      else
-        object[setterName] = staleSetter or API.createSetter(property)
   
-    unless object.hasOwnProperty(property)
-      Object.defineProperty(object, property,
-        get: API.createDescriptorGetter(property)
-        set: API.createDescriptorSetter(property)
-      )
-      previousProperty = API.previousProperty(property)
-      Object.defineProperty(object, previousProperty,
-        get: API.createGetter(previousProperty)
-      )
-  
-    API
-  
-  Object.defineProperty Function::, 'property',
-    value: (property, options) ->
-      API.property(this.prototype, property, options)
-  API
 )
