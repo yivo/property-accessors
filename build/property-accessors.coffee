@@ -35,6 +35,7 @@
       @metadata["#{@property}Getter"] = fn
   
     defineSetter: ->
+      # if custom getter and no custom getter => setter with exception
       code  = """ function fn(value) {
                     var old = this["_#{@property}"];
               """
@@ -52,7 +53,10 @@
               """
       eval(code)
       @metadata["_#{@property}Setter"] = fn
-      @metadata["#{@property}Setter"]  = @setter or fn
+      @metadata["#{@property}Setter"]  = if @setter
+        do (setter = @setter) ->
+          (value) -> setter.call(this, value); return
+      else fn
   
     defineProperty: ->
       unless @target.hasOwnProperty(@property)
@@ -251,8 +255,8 @@
   
   InstanceMembers:
   
-    _get: (property) -> this["_#{property}Getter"]?()
-    _set: (property, value) -> this["_#{property}Setter"]?(value)
+    _get: (property) -> this["_#{property}"]
+    _set: (property, value) -> this[METADATA]["_#{property}Setter"].call(this, value)
   
   
 )

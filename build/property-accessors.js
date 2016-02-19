@@ -46,7 +46,11 @@
         code += "   if (!comparator(value, old)) {\n    this[\"_" + this.property + "\"] = value;\n    this.notify(\"change:" + this.property + "\", this, value, old);\n  }\n}";
         eval(code);
         this.metadata["_" + this.property + "Setter"] = fn;
-        return this.metadata[this.property + "Setter"] = this.setter || fn;
+        return this.metadata[this.property + "Setter"] = this.setter ? (function(setter) {
+          return function(value) {
+            setter.call(this, value);
+          };
+        })(this.setter) : fn;
       };
 
       AbstractProperty.prototype.defineProperty = function() {
@@ -70,11 +74,11 @@
     PrototypeProperty = (function(superClass) {
       extend(PrototypeProperty, superClass);
 
-      function PrototypeProperty(Class, property1, getter, setter, options) {
+      function PrototypeProperty(Class, property1, getter, setter1, options) {
         this.Class = Class;
         this.property = property1;
         this.getter = getter;
-        this.setter = setter;
+        this.setter = setter1;
         this.options = options;
         PrototypeProperty.__super__.constructor.apply(this, arguments);
         this.prototype = this.Class.prototype;
@@ -105,12 +109,12 @@
     InstanceProperty = (function(superClass) {
       extend(InstanceProperty, superClass);
 
-      function InstanceProperty(object1, property1, getter, setter, options) {
+      function InstanceProperty(object1, property1, getter, setter1, options) {
         var base;
         this.object = object1;
         this.property = property1;
         this.getter = getter;
-        this.setter = setter;
+        this.setter = setter1;
         this.options = options;
         InstanceProperty.__super__.constructor.apply(this, arguments);
         (base = this.object)[METADATA] || (base[METADATA] = {});
@@ -271,12 +275,10 @@
       },
       InstanceMembers: {
         _get: function(property) {
-          var name;
-          return typeof this[name = "_" + property + "Getter"] === "function" ? this[name]() : void 0;
+          return this["_" + property];
         },
         _set: function(property, value) {
-          var name;
-          return typeof this[name = "_" + property + "Setter"] === "function" ? this[name](value) : void 0;
+          return this[METADATA]["_" + property + "Setter"].call(this, value);
         }
       }
     };

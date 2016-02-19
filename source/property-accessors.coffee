@@ -105,5 +105,5 @@ ClassMembers:
 
 InstanceMembers:
 
-  _get: (property) -> this["_#{property}Getter"]?()
-  _set: (property, value) -> this["_#{property}Setter"]?(value)
+  _get: (property) -> this["_#{property}"]
+  _set: (property, value) -> this[METADATA]["_#{property}Setter"].call(this, value)

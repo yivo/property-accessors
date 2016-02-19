@@ -25,6 +25,7 @@ class AbstractProperty
     @metadata["#{@property}Getter"] = fn
 
   defineSetter: ->
+    # if custom getter and no custom getter => setter with exception
     code  = """ function fn(value) {
                   var old = this["_#{@property}"];
             """
@@ -42,7 +43,10 @@ class AbstractProperty
             """
     eval(code)
     @metadata["_#{@property}Setter"] = fn
-    @metadata["#{@property}Setter"]  = @setter or fn
+    @metadata["#{@property}Setter"]  = if @setter
+      do (setter = @setter) ->
+        (value) -> setter.call(this, value); return
+    else fn
 
   defineProperty: ->
     unless @target.hasOwnProperty(@property)
