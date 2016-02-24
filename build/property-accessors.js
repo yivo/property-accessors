@@ -321,6 +321,7 @@
       };
     })(_);
     return {
+      VERSION: '1.0.2',
       define: defineProperty,
       ClassMembers: {
         property: (function(arg) {

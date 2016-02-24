@@ -256,6 +256,8 @@
       else
         new InstanceProperty(object, property, get, set, options).define()
   
+  VERSION: '1.0.2'
+  
   define: defineProperty
   
   ClassMembers:
