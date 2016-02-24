@@ -1,3 +1,4 @@
-global._                 = require('lodash')
-require('yess')
-global.PropertyAccessors = require('../../build/property-accessors.js')
+require('coffee-concerns')
+global.PublisherSubscriber = require('publisher-subscriber')
+global.Callbacks = require('callbacks')
+global.PropertyAccessors   = require('../../build/property-accessors.js')

@@ -1,58 +1,86 @@
 class AbstractProperty
 
-  build: ->
+  {defineProperty} = Object
+  {hasOwnProperty} = Object.prototype
 
-  defineGetter: ->
+  define: ->
+    defineProperty @target, @property,
+      get:          @publicGetter()
+      set:          @publicSetter()
+      enumerable:   yes
+      configurable: yes
+
+    if @options.silent
+      defineProperty @target, "_#{@property}",
+        get:          undefined
+        set:          undefined
+        enumerable:   no
+        configurable: yes
+    else
+      defineProperty @target, "_#{@property}",
+        get:          @shadowGetter()
+        set:          @shadowSetter()
+        enumerable:   no
+        configurable: yes
+
+      unless hasOwnProperty.call(@target, "__#{@property}")
+        defineProperty @target, "__#{@property}",
+          enumerable:   no
+          writable:     yes
+          configurable: no
+    @configureDependencies?()
+    this
+
+  publicGetter: ->
     if @getter
       if @options.memo
-        eval """
-          fn = (function(computer) {
-                 return function fn() {
-                   var val = this["_#{@property}"];
-                   if (val == null) {
-                     var ref = this["_#{@property}"] = computer.call(this);
-                     if (val !== ref) { this.notify("change:#{@property}", this, ref, val); }
-                     return ref;
-                   } else { return val; }
+        computer = @getter
+        call     = if typeof @getter is 'string'
+                     """ this["#{@getter}"]() """
+                   else
+                     """ computer.call(this) """
+        eval """ function fn() {
+                   if (null == this["_#{@property}"]) { this["_#{@property}"] = #{call}; }
+                   return this["_#{@property}"];
                  }
-               })(this.getter);
              """
+        fn
       else
-        fn = do (computer = @getter) -> -> computer.call(this)
+        if typeof @getter is 'string'
+          eval """ function fn() { return this["#{@getter}"](); } """
+          fn
+        else
+          @getter
     else
-      eval """ fn = function() { return this["_#{@property}"]; } """
+      eval """ function fn() { return this["_#{@property}"]; } """
+      fn
 
-    @metadata["#{@property}Getter"] = fn
+  publicSetter: ->
+    if @options.readonly
+      eval """ function fn() { throw new ReadonlyPropertyError(this, "#{@property}"); } """
+      fn
+    else if @setter
+      if typeof @setter is 'string'
+        eval """ function fn(value) { this["#{@setter}"](value); } """
+        fn
+      else
+        @setter
+    else
+      eval """ function fn(value) { this["_#{@property}"] = value; } """
+      fn
 
-  defineSetter: ->
-    # if custom getter and no custom getter => setter with exception
-    code  = """ function fn(value) {
-                  var old = this["_#{@property}"];
-            """
+  shadowGetter: ->
+    eval """ function fn() { return this["__#{@property}"]; } """
+    fn
 
-    code += """   if (old != null) {
-                    throw new ReadonlyPropertyError(this, "#{@property}");
-                  }
-            """ if @options.readonly
-
-    code += """   if (!comparator(value, old)) {
-                    this["_#{@property}"] = value;
-                    this.notify("change:#{@property}", this, value, old);
-                  }
-                }
-            """
-    eval(code)
-    @metadata["_#{@property}Setter"] = fn
-    @metadata["#{@property}Setter"]  = if @setter
-      do (setter = @setter) ->
-        (value) -> setter.call(this, value); return
-    else fn
-
-  defineProperty: ->
-    unless @target.hasOwnProperty(@property)
-      Object.defineProperty @target, @property,
-        get: @metadata["#{@property}Getter"]
-        set: @metadata["#{@property}Setter"]
-
-  toEvents: (deps) ->
-    _.map(deps, (el) -> "change:#{el}").join(' ')
+  shadowSetter: ->
+    equal = comparator
+    eval """ function fn(x1) {
+               var x0 = this["__#{@property}"];
+               if (!equal(x1, x0)) {
+                 this["__#{@property}"] = x1;
+                 this.notify("change:#{@property}", this, x1, x0);
+               }
+             }
+         """
+    fn

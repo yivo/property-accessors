@@ -1,24 +1,30 @@
-class Error extends __root__.Error
+prefixErrorMessage = (msg) -> "[Properties] #{msg}"
+
+class BaseError extends Error
   constructor: ->
     super(@message)
     Error.captureStackTrace?(this, @name) or (@stack = new Error().stack)
 
-class ArgumentError extends Error
-  constructor: ->
+class ArgumentError extends BaseError
+  constructor: (message) ->
     @name    = 'ArgumentError'
-    @message = '[PropertyAccessors] Not enough or invalid arguments'
+    @message = prefixErrorMessage(message)
     super
 
-class ReadonlyPropertyError extends Error
+class InvalidTargetError extends BaseError
+  constructor: ->
+    @name    = 'InvalidTargetError'
+    @message = prefixErrorMessage("Can't define property on null or undefined")
+    super
 
-  {wasConstructed} = _
+class InvalidPropertyError extends BaseError
+  constructor: (property) ->
+    @name    = 'InvalidPropertyError'
+    @message = prefixErrorMessage("Invalid property name: '#{property}'")
+    super
 
+class ReadonlyPropertyError extends BaseError
   constructor: (object, property) ->
-    obj = if wasConstructed(object)
-            object.constructor.name or object
-          else
-            object
-
     @name    = 'ReadonlyPropertyError'
-    @message = "[PropertyAccessors] Property #{obj}##{property} is readonly"
+    @message = prefixErrorMessage("Property #{identityObject(object)}##{property} is readonly")
     super

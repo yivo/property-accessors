@@ -2,271 +2,539 @@ var extend = function(child, parent) { for (var key in parent) { if (hasProp.cal
   hasProp = {}.hasOwnProperty;
 
 describe('PropertyAccessors', function() {
-  var expectFunction, expectPropertyToBeReadonly;
-  expectFunction = function(value) {
-    return expect(typeof value).toBe('function');
-  };
-  expectPropertyToBeReadonly = function(object, property) {
-    object['_' + property] = 1;
-    expect(object[property]).toBe(1);
-    object[property] = 2;
-    return expect(object[property]).toBe(1);
-  };
-  it('defined and defined in function prototype', function() {
-    expect(typeof PropertyAccessors).toBe('object');
-    expectFunction(PropertyAccessors.property);
-    return expectFunction(Function.prototype.property);
-  });
-  it('defines property on class', function() {
-    var Person, person;
-    Person = (function() {
-      function Person() {}
+  var Base;
+  Base = (function() {
+    Base.include(Callbacks);
 
-      Person.property('name');
+    Base.include(PropertyAccessors);
 
-      return Person;
+    Base.include(PublisherSubscriber);
 
-    })();
-    expect(Person.prototype.hasOwnProperty('name')).toBeTruthy();
-    expectFunction(Person.prototype.getName);
-    expectFunction(Person.prototype.setName);
-    person = new Person();
-    person.name = 'Jacob';
-    expect(person.name).toBe('Jacob');
-    expect(person._name).toBe('Jacob');
-    person.name = 'Adam';
-    return expect(person._previousName).toBe('Jacob');
-  });
-  it('can inherit properties', function() {
-    var Person, Student;
-    Person = (function() {
-      function Person() {}
+    function Base() {
+      this.bindCallbacks();
+      this.runInitializers();
+    }
 
-      Person.property('name');
+    return Base;
 
-      return Person;
+  })();
+  describe('simple property', function() {
+    it('correctly gets and sets value', function() {
+      var Person, p;
+      Person = (function(superClass) {
+        extend(Person, superClass);
 
-    })();
-    Student = (function(superClass) {
-      extend(Student, superClass);
-
-      function Student() {
-        return Student.__super__.constructor.apply(this, arguments);
-      }
-
-      Student.property('course');
-
-      return Student;
-
-    })(Person);
-    expectFunction(Person.prototype.getName);
-    expectFunction(Person.prototype.setName);
-    expectFunction(Student.prototype.getName);
-    expectFunction(Student.prototype.setName);
-    expectFunction(Student.prototype.getCourse);
-    return expectFunction(Student.prototype.setCourse);
-  });
-  it('defines property on class with custom accessors', function() {
-    var Person, person;
-    Person = (function() {
-      function Person() {}
-
-      Person.property('name', {
-        get: function() {
-          return this._name || 'Jacob';
-        },
-        set: function(value) {
-          return this._name = value;
+        function Person() {
+          return Person.__super__.constructor.apply(this, arguments);
         }
+
+        Person.property('name');
+
+        return Person;
+
+      })(Base);
+      p = new Person();
+      expect(p.name).toBe(void 0);
+      p.name = 'Yaroslav';
+      return expect(p.name).toBe('Yaroslav');
+    });
+    it('correctly emits events', function() {
+      var Person, n, p;
+      Person = (function(superClass) {
+        extend(Person, superClass);
+
+        function Person() {
+          return Person.__super__.constructor.apply(this, arguments);
+        }
+
+        Person.property('name');
+
+        return Person;
+
+      })(Base);
+      p = new Person();
+      n = 0;
+      p.on('change:name', function() {
+        return ++n;
       });
+      expect(n).toBe(0);
+      p.name = 'Yaroslav';
+      expect(n).toBe(1);
+      p.name = 'Yaroslav';
+      expect(n).toBe(1);
+      p.name = 'Yaroslav Volkov';
+      return expect(n).toBe(2);
+    });
+    return it('emits events when value set to falsy', function() {
+      var Person, n, p;
+      Person = (function(superClass) {
+        extend(Person, superClass);
 
-      return Person;
+        function Person() {
+          return Person.__super__.constructor.apply(this, arguments);
+        }
 
-    })();
-    person = new Person();
-    expect(person.name).toBe('Jacob');
-    person.name = 'Adam';
-    expect(person.name).toBe('Adam');
-    return expect(person._name).toBe(person.name);
+        Person.property('name');
+
+        return Person;
+
+      })(Base);
+      p = new Person();
+      p.name = 'Yaroslav';
+      n = 0;
+      p.on('change:name', function() {
+        return ++n;
+      });
+      p.name = null;
+      return expect(n).toBe(1);
+    });
   });
-  it('defines readonly property on class', function() {
-    var PersonA, PersonB;
-    PersonA = (function() {
-      function PersonA() {}
+  describe('readonly property', function() {
+    it("doesn't throw on value get", function() {
+      var Person, p;
+      Person = (function(superClass) {
+        extend(Person, superClass);
 
-      PersonA.property('id', {
-        set: false
-      });
+        function Person() {
+          return Person.__super__.constructor.apply(this, arguments);
+        }
 
-      return PersonA;
-
-    })();
-    expectPropertyToBeReadonly(new PersonA(), 'id');
-    PersonB = (function() {
-      function PersonB() {}
-
-      PersonB.property('id', {
-        readonly: true
-      });
-
-      return PersonB;
-
-    })();
-    return expectPropertyToBeReadonly(new PersonB(), 'id');
-  });
-  it('supports short readonly syntax', function() {
-    var Person, person;
-    Person = (function() {
-      function Person() {}
-
-      Person.property('id', function() {
-        return this._id;
-      });
-
-      return Person;
-
-    })();
-    person = new Person();
-    person._id = 1;
-    expect(person.id).toBe(1);
-    person.id = 2;
-    return expect(person.id).toBe(1);
-  });
-  it('works well when property defined multiple times', function() {
-    var Person, redefinedGetter;
-    redefinedGetter = function() {};
-    Person = (function() {
-      function Person() {}
-
-      Person.property('name');
-
-      Person.property('name', {
-        get: redefinedGetter
-      });
-
-      Person.property('name', {
-        set: false
-      });
-
-      return Person;
-
-    })();
-    expect(Person.prototype.getName).toBe(redefinedGetter);
-    return expect(Person.prototype.setName.toString()).toBe(PropertyAccessors.createGetter('name').toString());
-  });
-  it('breaks previously defined setter when readonly options is set', function() {
-    var Person;
-    Person = (function() {
-      function Person() {}
-
-      Person.property('id');
-
-      Person.property('id', {
-        readonly: true
-      });
-
-      return Person;
-
-    })();
-    return expectPropertyToBeReadonly(new Person(), 'id');
-  });
-  it('restores setter after readonly option', function() {
-    var Person, person;
-    Person = (function() {
-      function Person() {}
-
-      Person.property('id', {
-        readonly: true
-      });
-
-      Person.property('id', {
-        set: true
-      });
-
-      return Person;
-
-    })();
-    person = new Person();
-    person.id = 1;
-    expect(person.id).toBe(1);
-    person.id = 2;
-    return expect(person.id).toBe(2);
-  });
-  it('can map accessors by string', function() {
-    var Person, person, ref;
-    Person = (function() {
-      function Person() {}
-
-      Person.prototype.loadBiography = function() {
-        return this._biography || (this._biography = {
-          name: 'Jacob'
+        Person.property('name', {
+          readonly: true
         });
-      };
 
-      Person.prototype.changeBiography = function(bio) {};
+        return Person;
 
-      Person.property('biography', {
-        get: 'loadBiography',
-        set: 'changeBiography'
-      });
-
-      return Person;
-
-    })();
-    person = new Person();
-    expect(person.getBiography).toBe(Person.prototype.loadBiography);
-    expect((ref = person.biography) != null ? ref.name : void 0).toBe('Jacob');
-    return expect(person.setBiography).toBe(Person.prototype.changeBiography);
-  });
-  it('provides default actions in custom accessors', function() {
-    var Person, customNameSetter, person;
-    customNameSetter = function(name, options, set) {
-      expectFunction(this.defaultSetName);
-      if (name) {
-        this.defaultSetName(name, options);
-      }
-      return this;
-    };
-    Person = (function() {
-      function Person() {}
-
-      Person.prototype.customNameGetter = function() {
-        return this.defaultGetName(this);
-      };
-
-      Person.property('name', {
-        set: customNameSetter,
-        get: 'customNameGetter'
-      });
-
-      return Person;
-
-    })();
-    person = new Person();
-    expect(Person.prototype.setName).toBe(customNameSetter);
-    person.name = 'Jacob';
-    person.name = null;
-    return expect(person.name).toBe('Jacob');
-  });
-  return it("throws when accessors specified as a string can't be mapped to function", function() {
-    var Person;
-    return Person = (function() {
-      function Person() {}
-
-      expect(function() {
-        return Person.property('name', {
-          get: 'loadName'
-        });
-      }).toThrow();
-
-      expect(function() {
-        return Person.property('name', {
-          set: false
-        });
+      })(Base);
+      p = new Person();
+      return expect(function() {
+        return p.name;
       }).not.toThrow();
+    });
+    return it('throws on value set', function() {
+      var Person, p;
+      Person = (function(superClass) {
+        extend(Person, superClass);
 
-      return Person;
+        function Person() {
+          return Person.__super__.constructor.apply(this, arguments);
+        }
 
-    })();
+        Person.property('name', {
+          readonly: true
+        });
+
+        return Person;
+
+      })(Base);
+      p = new Person();
+      return expect(function() {
+        return p.name = 'Yaroslav';
+      }).toThrow();
+    });
+  });
+  describe('property with silent events', function() {
+    return it("doesn't emit events", function() {
+      var Person, n, p;
+      Person = (function(superClass) {
+        extend(Person, superClass);
+
+        function Person() {
+          return Person.__super__.constructor.apply(this, arguments);
+        }
+
+        Person.property('name', {
+          silent: true
+        });
+
+        return Person;
+
+      })(Base);
+      p = new Person();
+      n = 0;
+      p.on('change:name', function() {
+        return ++n;
+      });
+      p.name = 'Yaroslav';
+      return expect(n).toBe(0);
+    });
+  });
+  describe('computed property', function() {
+    it('invokes computer on every get', function() {
+      var Counter, c;
+      Counter = (function(superClass) {
+        var n;
+
+        extend(Counter, superClass);
+
+        function Counter() {
+          return Counter.__super__.constructor.apply(this, arguments);
+        }
+
+        n = 0;
+
+        Counter.property('count', function() {
+          return ++n;
+        });
+
+        return Counter;
+
+      })(Base);
+      c = new Counter();
+      expect(c.count).toBe(1);
+      return expect(c.count).toBe(2);
+    });
+    it('correctly emits events', function() {
+      var Counter, c, n;
+      Counter = (function(superClass) {
+        var c;
+
+        extend(Counter, superClass);
+
+        function Counter() {
+          return Counter.__super__.constructor.apply(this, arguments);
+        }
+
+        c = 0;
+
+        Counter.property('count', function() {
+          return this._count = c > 2 ? 3 : ++c;
+        });
+
+        return Counter;
+
+      })(Base);
+      c = new Counter();
+      n = 0;
+      c.on('change:count', function() {
+        return ++n;
+      });
+      c.count;
+      expect(n).toBe(1);
+      c.count;
+      expect(n).toBe(2);
+      c.count;
+      expect(n).toBe(3);
+      c.count;
+      return expect(n).toBe(3);
+    });
+    it('works good when default value pattern used', function() {
+      var Counter, c, calls, events;
+      Counter = (function(superClass) {
+        extend(Counter, superClass);
+
+        function Counter() {
+          return Counter.__super__.constructor.apply(this, arguments);
+        }
+
+        Counter.property('count', function() {
+          ++calls;
+          return this._count != null ? this._count : this._count = 0;
+        });
+
+        return Counter;
+
+      })(Base);
+      c = new Counter();
+      events = 0;
+      calls = 0;
+      c.on('change:count', function() {
+        return ++events;
+      });
+      expect(c.count).toBe(0);
+      expect(calls).toBe(1);
+      expect(events).toBe(1);
+      c.count = 5;
+      expect(c.count).toBe(5);
+      expect(calls).toBe(2);
+      expect(events).toBe(2);
+      c.count = 5;
+      expect(c.count).toBe(5);
+      expect(calls).toBe(3);
+      return expect(events).toBe(2);
+    });
+    it('correctly works with dependencies', function() {
+      var Person, n, p;
+      Person = (function(superClass) {
+        extend(Person, superClass);
+
+        function Person() {
+          return Person.__super__.constructor.apply(this, arguments);
+        }
+
+        Person.property('firstName');
+
+        Person.property('lastName');
+
+        Person.property('fullName', {
+          depends: ['firstName', 'lastName']
+        }, function() {
+          return this._fullName = this.firstName + " " + this.lastName;
+        });
+
+        return Person;
+
+      })(Base);
+      p = new Person();
+      n = 0;
+      p.on('change:fullName', function() {
+        return ++n;
+      });
+      p.fullName;
+      expect(n).toBe(1);
+      expect(p.fullName).toBe('undefined undefined');
+      p.firstName = 'Yaroslav';
+      expect(n).toBe(2);
+      expect(p.fullName).toBe('Yaroslav undefined');
+      p.lastName = 'Volkov';
+      expect(n).toBe(3);
+      return expect(p.fullName).toBe('Yaroslav Volkov');
+    });
+    it('returns actual value if value changes during get (memo: true)', function() {
+      var Person, p;
+      Person = (function(superClass) {
+        extend(Person, superClass);
+
+        function Person() {
+          return Person.__super__.constructor.apply(this, arguments);
+        }
+
+        Person.property('name', {
+          memo: true
+        }, function() {
+          return 'Yaroslav';
+        });
+
+        return Person;
+
+      })(Base);
+      p = new Person();
+      p.on('change:name', function() {
+        return p.name = 'Tom';
+      });
+      return expect(p.name).toBe('Tom');
+    });
+    it('returns old value if value changes during get (memo: false)', function() {
+      var Person, p;
+      Person = (function(superClass) {
+        extend(Person, superClass);
+
+        function Person() {
+          return Person.__super__.constructor.apply(this, arguments);
+        }
+
+        Person.property('name', function() {
+          return this._name != null ? this._name : this._name = 'Yaroslav';
+        });
+
+        return Person;
+
+      })(Base);
+      p = new Person();
+      p.on('change:name', function() {
+        return p.name = 'Tom';
+      });
+      return expect(p.name).toBe('Yaroslav');
+    });
+    return describe('when memoized', function() {
+      it('invokes computer only when value is falsy', function() {
+        var Counter, c;
+        Counter = (function(superClass) {
+          var count;
+
+          extend(Counter, superClass);
+
+          function Counter() {
+            return Counter.__super__.constructor.apply(this, arguments);
+          }
+
+          count = 0;
+
+          Counter.property('count', {
+            memo: true
+          }, function() {
+            return ++count;
+          });
+
+          return Counter;
+
+        })(Base);
+        c = new Counter();
+        expect(c.count).toBe(1);
+        expect(c.count).toBe(1);
+        c.count = null;
+        expect(c.count).toBe(2);
+        return expect(c.count).toBe(2);
+      });
+      it('correctly emits events', function() {
+        var Counter, c, n;
+        Counter = (function(superClass) {
+          var count;
+
+          extend(Counter, superClass);
+
+          function Counter() {
+            return Counter.__super__.constructor.apply(this, arguments);
+          }
+
+          count = 0;
+
+          Counter.property('count', {
+            memo: true
+          }, function() {
+            return ++count;
+          });
+
+          return Counter;
+
+        })(Base);
+        c = new Counter();
+        n = 0;
+        c.on('change:count', function() {
+          return ++n;
+        });
+        c.count;
+        expect(n).toBe(1);
+        c.count;
+        expect(n).toBe(1);
+        c.count = null;
+        expect(n).toBe(2);
+        c.count;
+        expect(n).toBe(3);
+        c.count;
+        return expect(n).toBe(3);
+      });
+      return it('correctly works when there are dependencies', function() {
+        var Person, p, x, y, z;
+        Person = (function(superClass) {
+          extend(Person, superClass);
+
+          function Person() {
+            return Person.__super__.constructor.apply(this, arguments);
+          }
+
+          Person.property('firstName');
+
+          Person.property('lastName');
+
+          Person.property('fullName', {
+            depends: ['firstName', 'lastName'],
+            memo: true
+          }, function() {
+            return this.firstName + " " + this.lastName;
+          });
+
+          return Person;
+
+        })(Base);
+        x = 0;
+        y = 0;
+        z = 0;
+        p = new Person();
+        p.bind({
+          'change:firstName': function() {
+            return ++x;
+          },
+          'change:lastName': function() {
+            return ++y;
+          },
+          'change:fullName': function() {
+            return ++z;
+          }
+        });
+        p.firstName = 'Yaroslav';
+        expect(x).toBe(1);
+        expect(y).toBe(0);
+        expect(z).toBe(1);
+        p.lastName = 'Volkov';
+        expect(p.fullName).toBe('Yaroslav Volkov');
+        expect(x).toBe(1);
+        expect(y).toBe(1);
+        return expect(z).toBe(2);
+      });
+    });
+  });
+  describe('both readonly and computed property', function() {
+    it('correctly gets, sets value and emits events', function() {
+      var Foo, calls, events, f;
+      Foo = (function(superClass) {
+        extend(Foo, superClass);
+
+        function Foo() {
+          return Foo.__super__.constructor.apply(this, arguments);
+        }
+
+        Foo.property('bar', {
+          readonly: true
+        }, function() {
+          return this._bar = ++calls;
+        });
+
+        return Foo;
+
+      })(Base);
+      calls = 0;
+      events = 0;
+      f = new Foo();
+      f.on('change:bar', function() {
+        return ++events;
+      });
+      expect(f.bar).toBe(1);
+      expect(events).toBe(1);
+      f.bar;
+      f.bar;
+      expect(f.bar).toBe(4);
+      return expect(events).toBe(4);
+    });
+    return describe('when also memoized', function() {
+      return it('correctly gets, sets value and emits events', function() {
+        var Foo, calls, events, f;
+        Foo = (function(superClass) {
+          extend(Foo, superClass);
+
+          function Foo() {
+            return Foo.__super__.constructor.apply(this, arguments);
+          }
+
+          Foo.property('bar', {
+            readonly: true,
+            memo: true
+          }, function() {
+            return ++calls;
+          });
+
+          return Foo;
+
+        })(Base);
+        calls = 0;
+        events = 0;
+        f = new Foo();
+        f.on('change:bar', function() {
+          return ++events;
+        });
+        expect(f.bar).toBe(1);
+        expect(events).toBe(1);
+        f.bar;
+        f.bar;
+        expect(f.bar).toBe(1);
+        return expect(events).toBe(1);
+      });
+    });
+  });
+  return describe('when property defined on instance', function() {
+    return it('correctly works', function() {
+      var n, p;
+      p = new Base();
+      n = 0;
+      p.on('change:name', function() {
+        return ++n;
+      });
+      PropertyAccessors.define(p, 'name');
+      expect(p.name).toBe(void 0);
+      expect(n).toBe(0);
+      p.name = 'Yaroslav';
+      expect(p.name).toBe('Yaroslav');
+      return expect(n).toBe(1);
+    });
   });
 });

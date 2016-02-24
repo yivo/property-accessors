@@ -3,23 +3,16 @@ class PrototypeProperty extends AbstractProperty
     super
     @prototype      = @Class.prototype
     @target         = @prototype
-    @metadata       = @Class.reopenObject(METADATA)
-    @initializerKey = "property-accessors:events:#{@property}"
+    @initializerKey = "properties:events:#{@property}"
 
-  build: ->
-    @defineGetter()
-    @defineSetter()
-    @defineProperty()
-    @defineCallback()
-
-  defineCallback: ->
+  configureDependencies: ->
     @Class.deleteInitializer(@initializerKey)
 
-    if @getter and @options.memo && @options.dependencies?.length > 0
+    if @getter and not @options.silent and @options.dependencies?.length > 0
       eval """
         function fn() {
-          this.on("#{@toEvents(@options.dependencies)}", function() {
-            this["_#{@property}"] = null;
+          this.on("#{dependenciesToEvents(@options.dependencies)}", function() {
+            this["__#{@property}"] = null;
             this["#{@property}"];
           });
         }

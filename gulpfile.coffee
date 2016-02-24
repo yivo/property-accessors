@@ -13,8 +13,8 @@ require('gulp-lazyload')
 gulp.task 'default', ['build', 'watch'], ->
 
 dependencies = [
-  {require: 'lodash', global: '_'}
-  {require: 'yess'}
+  {require: 'lodash'}
+  {require: 'yess', global: '_'}
 ]
 
 gulp.task 'build', ->

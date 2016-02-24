@@ -1,94 +1,115 @@
 ((root, factory) ->
   if typeof define is 'function' and define.amd
-    define ['lodash', 'yess'], (_) ->
+    define ['yess', 'lodash'], (_) ->
       root.PropertyAccessors = factory(root, _)
   else if typeof module is 'object' && typeof module.exports is 'object'
-    module.exports = factory(root, require('lodash'), require('yess'))
+    module.exports = factory(root, require('yess'), require('lodash'))
   else
     root.PropertyAccessors = factory(root, root._)
   return
 )(this, (__root__, _) ->
   class AbstractProperty
   
-    build: ->
+    {defineProperty} = Object
+    {hasOwnProperty} = Object.prototype
   
-    defineGetter: ->
+    define: ->
+      defineProperty @target, @property,
+        get:          @publicGetter()
+        set:          @publicSetter()
+        enumerable:   yes
+        configurable: yes
+  
+      if @options.silent
+        defineProperty @target, "_#{@property}",
+          get:          undefined
+          set:          undefined
+          enumerable:   no
+          configurable: yes
+      else
+        defineProperty @target, "_#{@property}",
+          get:          @shadowGetter()
+          set:          @shadowSetter()
+          enumerable:   no
+          configurable: yes
+  
+        unless hasOwnProperty.call(@target, "__#{@property}")
+          defineProperty @target, "__#{@property}",
+            enumerable:   no
+            writable:     yes
+            configurable: no
+      @configureDependencies?()
+      this
+  
+    publicGetter: ->
       if @getter
         if @options.memo
-          eval """
-            fn = (function(computer) {
-                   return function fn() {
-                     var val = this["_#{@property}"];
-                     if (val == null) {
-                       var ref = this["_#{@property}"] = computer.call(this);
-                       if (val !== ref) { this.notify("change:#{@property}", this, ref, val); }
-                       return ref;
-                     } else { return val; }
+          computer = @getter
+          call     = if typeof @getter is 'string'
+                       """ this["#{@getter}"]() """
+                     else
+                       """ computer.call(this) """
+          eval """ function fn() {
+                     if (null == this["_#{@property}"]) { this["_#{@property}"] = #{call}; }
+                     return this["_#{@property}"];
                    }
-                 })(this.getter);
                """
+          fn
         else
-          fn = do (computer = @getter) -> -> computer.call(this)
+          if typeof @getter is 'string'
+            eval """ function fn() { return this["#{@getter}"](); } """
+            fn
+          else
+            @getter
       else
-        eval """ fn = function() { return this["_#{@property}"]; } """
+        eval """ function fn() { return this["_#{@property}"]; } """
+        fn
   
-      @metadata["#{@property}Getter"] = fn
+    publicSetter: ->
+      if @options.readonly
+        eval """ function fn() { throw new ReadonlyPropertyError(this, "#{@property}"); } """
+        fn
+      else if @setter
+        if typeof @setter is 'string'
+          eval """ function fn(value) { this["#{@setter}"](value); } """
+          fn
+        else
+          @setter
+      else
+        eval """ function fn(value) { this["_#{@property}"] = value; } """
+        fn
   
-    defineSetter: ->
-      # if custom getter and no custom getter => setter with exception
-      code  = """ function fn(value) {
-                    var old = this["_#{@property}"];
-              """
+    shadowGetter: ->
+      eval """ function fn() { return this["__#{@property}"]; } """
+      fn
   
-      code += """   if (old != null) {
-                      throw new ReadonlyPropertyError(this, "#{@property}");
-                    }
-              """ if @options.readonly
-  
-      code += """   if (!comparator(value, old)) {
-                      this["_#{@property}"] = value;
-                      this.notify("change:#{@property}", this, value, old);
-                    }
-                  }
-              """
-      eval(code)
-      @metadata["_#{@property}Setter"] = fn
-      @metadata["#{@property}Setter"]  = if @setter
-        do (setter = @setter) ->
-          (value) -> setter.call(this, value); return
-      else fn
-  
-    defineProperty: ->
-      unless @target.hasOwnProperty(@property)
-        Object.defineProperty @target, @property,
-          get: @metadata["#{@property}Getter"]
-          set: @metadata["#{@property}Setter"]
-  
-    toEvents: (deps) ->
-      _.map(deps, (el) -> "change:#{el}").join(' ')
+    shadowSetter: ->
+      equal = comparator
+      eval """ function fn(x1) {
+                 var x0 = this["__#{@property}"];
+                 if (!equal(x1, x0)) {
+                   this["__#{@property}"] = x1;
+                   this.notify("change:#{@property}", this, x1, x0);
+                 }
+               }
+           """
+      fn
   
   class PrototypeProperty extends AbstractProperty
     constructor: (@Class, @property, @getter, @setter, @options) ->
       super
       @prototype      = @Class.prototype
       @target         = @prototype
-      @metadata       = @Class.reopenObject(METADATA)
-      @initializerKey = "property-accessors:events:#{@property}"
+      @initializerKey = "properties:events:#{@property}"
   
-    build: ->
-      @defineGetter()
-      @defineSetter()
-      @defineProperty()
-      @defineCallback()
-  
-    defineCallback: ->
+    configureDependencies: ->
       @Class.deleteInitializer(@initializerKey)
   
-      if @getter and @options.memo && @options.dependencies?.length > 0
+      if @getter and not @options.silent and @options.dependencies?.length > 0
         eval """
           function fn() {
-            this.on("#{@toEvents(@options.dependencies)}", function() {
-              this["_#{@property}"] = null;
+            this.on("#{dependenciesToEvents(@options.dependencies)}", function() {
+              this["__#{@property}"] = null;
               this["#{@property}"];
             });
           }
@@ -98,71 +119,22 @@
   class InstanceProperty extends AbstractProperty
     constructor: (@object, @property, @getter, @setter, @options) ->
       super
-      @object[METADATA] ||= {}
-      @metadata        = @object[METADATA]
-      @target          = @object
-      @callbackKey     = "#{@property}Callback"
+      @target      = @object
+      @callbackKey = "#{@property}Callback"
   
-    build: ->
-      @defineGetter()
-      @defineSetter()
-      @defineProperty()
-      @defineCallback()
+    configureDependencies: ->
+      if @target[@callbackKey]
+        @object.off(null, @target[@callbackKey])
+        delete @target[@callbackKey]
   
-    defineCallback: ->
-      if @metadata[@callbackKey]
-        @object.off(null, @metadata[@callbackKey])
-        delete @metadata[@callbackKey]
-  
-      if @getter and @options.memo && @options.dependencies?.length > 0
+      if @getter and not @options.silent and @options.dependencies?.length > 0
         eval """ function fn() {
-                   this["_#{@property}"] = null;
+                   this["__#{@property}"] = null;
                    this["#{@property}"];
                  }
              """
-        @metadata[@callbackKey] = fn
-        @object.on @toEvents(@options.dependencies), fn
-  
-  class Error extends __root__.Error
-    constructor: ->
-      super(@message)
-      Error.captureStackTrace?(this, @name) or (@stack = new Error().stack)
-  
-  class ArgumentError extends Error
-    constructor: ->
-      @name    = 'ArgumentError'
-      @message = '[PropertyAccessors] Not enough or invalid arguments'
-      super
-  
-  class ReadonlyPropertyError extends Error
-  
-    {wasConstructed} = _
-  
-    constructor: (object, property) ->
-      obj = if wasConstructed(object)
-              object.constructor.name or object
-            else
-              object
-  
-      @name    = 'ReadonlyPropertyError'
-      @message = "[PropertyAccessors] Property #{obj}##{property} is readonly"
-      super
-  
-  supportsConst = do ->
-    try
-      eval 'const BLACKHOLE;'
-      true
-    catch
-      false
-  
-  if supportsConst
-    eval """
-      const METADATA = '_' + _.generateID();
-         """
-  else
-    eval """
-      var METADATA = '_' + _.generateID();
-         """
+        @target[@callbackKey] = fn
+        @object.on(dependenciesToEvents(@options.dependencies), fn)
   
   comparator = do ({wasConstructed, isEqual} = _) ->
     (a, b) ->
@@ -172,6 +144,47 @@
   
       # Other objects compare by value
       else isEqual(a, b)
+  
+  dependenciesToEvents = do ({map} = _) ->
+    (depsAry) -> map(depsAry, (el) -> "change:#{el}").join(' ')
+  
+  identityObject = do ({wasConstructed} = _) ->
+    (object) ->
+      (if wasConstructed(object)
+        object.constructor.name or object
+      else
+        object).toString()
+  
+  prefixErrorMessage = (msg) -> "[Properties] #{msg}"
+  
+  class BaseError extends Error
+    constructor: ->
+      super(@message)
+      Error.captureStackTrace?(this, @name) or (@stack = new Error().stack)
+  
+  class ArgumentError extends BaseError
+    constructor: (message) ->
+      @name    = 'ArgumentError'
+      @message = prefixErrorMessage(message)
+      super
+  
+  class InvalidTargetError extends BaseError
+    constructor: ->
+      @name    = 'InvalidTargetError'
+      @message = prefixErrorMessage("Can't define property on null or undefined")
+      super
+  
+  class InvalidPropertyError extends BaseError
+    constructor: (property) ->
+      @name    = 'InvalidPropertyError'
+      @message = prefixErrorMessage("Invalid property name: '#{property}'")
+      super
+  
+  class ReadonlyPropertyError extends BaseError
+    constructor: (object, property) ->
+      @name    = 'ReadonlyPropertyError'
+      @message = prefixErrorMessage("Property #{identityObject(object)}##{property} is readonly")
+      super
   
   # Signature 1:
   #   property this, 'name'
@@ -195,68 +208,71 @@
   #   property this, 'fullName',
   #     set: (fullName) ->
   #       [@firstName, @lastName] = fullName.split(/\s+/)
-  #       TODO
+  #       @_fullName = fullName
   #     get: -> "#{@firstName} #{@lastName}"
   #     depends: ['firstName', 'lastName']
-  {isFunction, isClass, isObject} = _
-  defineProperty = (object, property, arg1, arg2) ->
-    memo     = false
-    readonly = false
   
-    switch arguments.length
-      # Signature: 1
-      when 2 then break
+  defineProperty = do ({isFunction, isString, isClass, isObject} = _) ->
+    isAccessor = (fn) -> isString(fn) or isFunction(fn)
   
-      # Signature: 2, 3, 4, 5, 7
-      when 3
+    (object, property, arg1, arg2) ->
   
-        # Signature 4
-        if isFunction(arg1)
-          get = arg1
+      throw new InvalidTargetError()           unless object?
+      throw new InvalidPropertyError(property) unless isString(property)
   
-        # Signature: 2, 3, 5, 7
-        else
-          if isObject(arg1)
-            {get, set, memo, readonly} = arg1
+      memo     = false
+      readonly = false
   
-          else throw new ArgumentError()
+      switch arguments.length
+        # Signature: 1
+        when 2 then break
   
-      # Signature: 6
-      when 4
-        if isObject(arg1) and isFunction(arg2)
-          get = arg2
-          {memo, readonly} = arg1
+        # Signature: 2, 3, 4, 5, 7
+        when 3
+          # Signature 4
+          if isAccessor(arg1) then get = arg1
   
-        else throw new ArgumentError()
+          # Signature: 2, 3, 5, 7
+          else
+            if isObject(arg1) then {get, set, memo, readonly, depends, silent} = arg1
+            else throw new ArgumentError("Expected object but given #{arg1}")
   
-    get      = null unless isFunction(get)
-    set      = null unless isFunction(set)
-    memo     = !!memo
-    readonly = !!readonly
+        # Signature: 6
+        when 4
+          if isObject(arg1) and isAccessor(arg2)
+            {memo, readonly, depends, silent} = arg1; get = arg2
+          else throw new ArgumentError("Expected object and accessor (function or function name) but given #{arg1} and #{arg2}")
   
-    if isClass(object)
-      new PrototypeProperty(object, property, get, set, {memo, readonly}).build()
+        else throw new ArgumentError('Too many arguments given')
   
-    else
-      new InstanceProperty(object, property, get, set, {memo, readonly}).build()
+      get      = null unless isAccessor(get)
+      set      = null unless isAccessor(set)
+      memo     = !!memo
+      readonly = !!readonly
+      options  = {memo, readonly, dependencies: depends, silent}
   
-  property: defineProperty
+      if isClass(object)
+        new PrototypeProperty(object, property, get, set, options).define()
+      else
+        new InstanceProperty(object, property, get, set, options).define()
   
-  ArgumentError: ArgumentError
+  define: defineProperty
   
   ClassMembers:
   
-    property: (property) ->
-      args = [this]
-      len  = arguments.length
-      idx  = -1
-      args.push(arguments[idx]) while ++idx < len
-      defineProperty.apply(null, args)
+    property: do ({every, isString} = _) ->
+      ->
+        args = []
+        len  = arguments.length
+        idx  = -1
+        args.push(arguments[idx]) while ++idx < len
   
-  InstanceMembers:
-  
-    _get: (property) -> this["_#{property}"]
-    _set: (property, value) -> this[METADATA]["_#{property}Setter"].call(this, value)
+        if every(args, (el) -> isString(el))
+          defineProperty(this, name) for name in args
+        else
+          args.unshift(this)
+          defineProperty.apply(null, args)
+        return
   
   
 )
