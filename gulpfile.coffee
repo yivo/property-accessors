@@ -4,7 +4,7 @@ require('gulp-lazyload')
   concat:     'gulp-concat'
   coffee:     'gulp-coffee'
   preprocess: 'gulp-preprocess'
-  iife:       'gulp-iife'
+  iife:       'gulp-iife-wrap'
   uglify:     'gulp-uglify'
   rename:     'gulp-rename'
   del:        'del'

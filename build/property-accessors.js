@@ -2,17 +2,19 @@
   var extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
     hasProp = {}.hasOwnProperty;
 
-  (function(root, factory) {
+  (function(factory) {
+    var root;
+    root = typeof self === 'object' && (typeof self !== "undefined" && self !== null ? self.self : void 0) === self ? self : typeof global === 'object' && (typeof global !== "undefined" && global !== null ? global.global : void 0) === global ? global : void 0;
     if (typeof define === 'function' && define.amd) {
-      define(['yess', 'lodash'], function(_) {
+      define(['yess', 'lodash', 'exports'], function(_) {
         return root.PropertyAccessors = factory(root, _);
       });
-    } else if (typeof module === 'object' && typeof module.exports === 'object') {
+    } else if (typeof module === 'object' && module !== null && (module.exports != null) && typeof module.exports === 'object') {
       module.exports = factory(root, require('yess'), require('lodash'));
     } else {
       root.PropertyAccessors = factory(root, root._);
     }
-  })(this, function(__root__, _) {
+  })(function(__root__, _) {
     var AbstractProperty, ArgumentError, BaseError, InstanceProperty, InvalidPropertyError, InvalidTargetError, PrototypeProperty, ReadonlyPropertyError, comparator, defineProperty, dependenciesToEvents, identityObject, prefixErrorMessage;
     AbstractProperty = (function() {
       var defineProperty, hasOwnProperty;
