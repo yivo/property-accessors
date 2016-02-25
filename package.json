@@ -1,6 +1,6 @@
 {
   "name": "property-accessors",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Property accessors for JavaScript",
   "main": "build/property-accessors.js",
   "scripts": {
