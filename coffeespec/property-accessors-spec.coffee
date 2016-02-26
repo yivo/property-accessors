@@ -5,9 +5,7 @@ describe 'PropertyAccessors', ->
     @include PropertyAccessors
     @include PublisherSubscriber
 
-    constructor: ->
-      @bindCallbacks()
-      @runInitializers()
+    constructor: -> @initialize()
 
   describe 'simple property', ->
     it 'correctly gets and sets value', ->

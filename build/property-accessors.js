@@ -34,8 +34,7 @@
         });
         if (this.options.silent) {
           defineProperty(this.target, "_" + this.property, {
-            get: void 0,
-            set: void 0,
+            writable: true,
             enumerable: false,
             configurable: true
           });
@@ -323,7 +322,7 @@
       };
     })(_);
     return {
-      VERSION: '1.0.4',
+      VERSION: '1.0.5',
       define: defineProperty,
       InstanceMembers: {},
       ClassMembers: {

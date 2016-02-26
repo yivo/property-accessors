@@ -1,10 +1,10 @@
 {
   "name": "property-accessors",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Property accessors for JavaScript",
   "main": "build/property-accessors.js",
   "scripts": {
-    "test": "gulp build coffeespec && jasmine"
+    "test": "gulp build coffeespec && jasmine && rm -rf spec"
   },
   "author": "Yaroslav Konoplov <yaroslav@inbox.com>",
   "license": "MIT",

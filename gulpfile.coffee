@@ -38,7 +38,9 @@ gulp.task 'watch', ->
   gulp.watch 'source/**/*', ['build']
 
 gulp.task 'coffeespec', ->
-  del.sync 'spec/**/*.js'
+  del.sync 'spec/**/*'
   gulp.src('coffeespec/**/*.coffee')
   .pipe coffee(bare: yes)
   .pipe gulp.dest('spec')
+  gulp.src('coffeespec/support/jasmine.json')
+  .pipe gulp.dest('spec/support')

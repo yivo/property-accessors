@@ -12,8 +12,7 @@ class AbstractProperty
 
     if @options.silent
       defineProperty @target, "_#{@property}",
-        get:          undefined
-        set:          undefined
+        writable:     yes
         enumerable:   no
         configurable: yes
     else

@@ -40,8 +40,7 @@
   
       if @options.silent
         defineProperty @target, "_#{@property}",
-          get:          undefined
-          set:          undefined
+          writable:     yes
           enumerable:   no
           configurable: yes
       else
@@ -274,7 +273,7 @@
       else
         new InstanceProperty(object, property, get, set, options).define()
   
-  VERSION: '1.0.4'
+  VERSION: '1.0.5'
   
   define: defineProperty
   
