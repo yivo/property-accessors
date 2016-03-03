@@ -13,6 +13,9 @@ require('gulp-lazyload')
 gulp.task 'default', ['build', 'watch'], ->
 
 dependencies = [
+  {global: 'Object', native: yes}
+  {global: 'Error',  native: yes}
+  {global: 'eval',   native: yes, argument: 'evaluate'}
   {require: 'lodash'}
   {require: 'yess', global: '_'}
 ]

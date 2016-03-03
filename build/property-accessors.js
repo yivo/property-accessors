@@ -7,14 +7,14 @@
     root = typeof self === 'object' && (typeof self !== "undefined" && self !== null ? self.self : void 0) === self ? self : typeof global === 'object' && (typeof global !== "undefined" && global !== null ? global.global : void 0) === global ? global : void 0;
     if (typeof define === 'function' && define.amd) {
       define(['yess', 'lodash', 'exports'], function(_) {
-        return root.PropertyAccessors = factory(root, _);
+        return root.PropertyAccessors = factory(root, Object, Error, eval, _);
       });
     } else if (typeof module === 'object' && module !== null && (module.exports != null) && typeof module.exports === 'object') {
-      module.exports = factory(root, require('yess'), require('lodash'));
+      module.exports = factory(root, Object, Error, eval, require('yess'), require('lodash'));
     } else {
-      root.PropertyAccessors = factory(root, root._);
+      root.PropertyAccessors = factory(root, Object, Error, eval, root._);
     }
-  })(function(__root__, _) {
+  })(function(__root__, Object, Error, evaluate, _) {
     var AbstractProperty, ArgumentError, BaseError, InstanceProperty, InvalidPropertyError, InvalidTargetError, PrototypeProperty, ReadonlyPropertyError, comparator, defineProperty, dependenciesToEvents, identityObject, prefixErrorMessage;
     AbstractProperty = (function() {
       var defineProperty, hasOwnProperty;
@@ -60,54 +60,69 @@
       };
 
       AbstractProperty.prototype.publicGetter = function() {
-        var call, computer;
         if (this.getter) {
           if (this.options.memo) {
-            computer = this.getter;
-            call = typeof this.getter === 'string' ? " this[\"" + this.getter + "\"]() " : " computer.call(this) ";
-            eval(" function fn() {\n  if (null == this[\"_" + this.property + "\"]) { this[\"_" + this.property + "\"] = " + call + "; }\n  return this[\"_" + this.property + "\"];\n}");
-            return fn;
+            if (typeof this.getter === 'string') {
+              evaluate(" function fn() {\n  if (null == this[\"_" + this.property + "\"]) { this[\"_" + this.property + "\"] = this[\"" + this.getter + "\"](); }\n  return this[\"_" + this.property + "\"];\n}");
+              return fn;
+            } else {
+              return (function(computer, property) {
+                return function() {
+                  var name1;
+                  if (this[name1 = "_" + property] == null) {
+                    this[name1] = computer.call(this);
+                  }
+                  return this["_" + property];
+                };
+              })(this.getter, this.property);
+            }
           } else {
             if (typeof this.getter === 'string') {
-              eval(" function fn() { return this[\"" + this.getter + "\"](); } ");
+              evaluate(" function fn() { return this[\"" + this.getter + "\"](); } ");
               return fn;
             } else {
               return this.getter;
             }
           }
         } else {
-          eval(" function fn() { return this[\"_" + this.property + "\"]; } ");
+          evaluate(" function fn() { return this[\"_" + this.property + "\"]; } ");
           return fn;
         }
       };
 
       AbstractProperty.prototype.publicSetter = function() {
         if (this.options.readonly) {
-          eval(" function fn() { throw new ReadonlyPropertyError(this, \"" + this.property + "\"); } ");
+          evaluate(" function fn() { throw new ReadonlyPropertyError(this, \"" + this.property + "\"); } ");
           return fn;
         } else if (this.setter) {
           if (typeof this.setter === 'string') {
-            eval(" function fn(value) { this[\"" + this.setter + "\"](value); } ");
+            evaluate(" function fn(value) { this[\"" + this.setter + "\"](value); } ");
             return fn;
           } else {
             return this.setter;
           }
         } else {
-          eval(" function fn(value) { this[\"_" + this.property + "\"] = value; } ");
+          evaluate(" function fn(value) { this[\"_" + this.property + "\"] = value; } ");
           return fn;
         }
       };
 
       AbstractProperty.prototype.shadowGetter = function() {
-        eval(" function fn() { return this[\"__" + this.property + "\"]; } ");
+        evaluate(" function fn() { return this[\"__" + this.property + "\"]; } ");
         return fn;
       };
 
       AbstractProperty.prototype.shadowSetter = function() {
-        var equal;
-        equal = comparator;
-        eval(" function fn(x1) {\n  var x0 = this[\"__" + this.property + "\"];\n  if (!equal(x1, x0)) {\n    this[\"__" + this.property + "\"] = x1;\n    this.notify(\"change:" + this.property + "\", this, x1, x0);\n  }\n}");
-        return fn;
+        return (function(equal, property) {
+          return function(x1) {
+            var x0;
+            x0 = this["__" + property];
+            if (!equal(x1, x0)) {
+              this["__" + property] = x1;
+              this.notify("change:" + property, this, x1, x0);
+            }
+          };
+        })(comparator, this.property);
       };
 
       return AbstractProperty;
@@ -132,7 +147,7 @@
         var ref;
         this.Class.deleteInitializer(this.initializerKey);
         if (this.getter && !this.options.silent && ((ref = this.options.dependencies) != null ? ref.length : void 0) > 0) {
-          eval("function fn() {\n  this.on(\"" + (dependenciesToEvents(this.options.dependencies)) + "\", function() {\n    this[\"__" + this.property + "\"] = null;\n    this[\"" + this.property + "\"];\n  });\n}");
+          evaluate("function fn() {\n  this.on(\"" + (dependenciesToEvents(this.options.dependencies)) + "\", function() {\n    this[\"__" + this.property + "\"] = null;\n    this[\"" + this.property + "\"];\n  });\n}");
           return this.Class.initializer(this.initializerKey, fn);
         }
       };
@@ -161,7 +176,7 @@
           delete this.target[this.callbackKey];
         }
         if (this.getter && !this.options.silent && ((ref = this.options.dependencies) != null ? ref.length : void 0) > 0) {
-          eval(" function fn() {\n  this[\"__" + this.property + "\"] = null;\n  this[\"" + this.property + "\"];\n}");
+          evaluate(" function fn() {\n  this[\"__" + this.property + "\"] = null;\n  this[\"" + this.property + "\"];\n}");
           this.target[this.callbackKey] = fn;
           return this.object.on(dependenciesToEvents(this.options.dependencies), fn);
         }
@@ -181,15 +196,15 @@
         }
       };
     })(_);
-    dependenciesToEvents = (function(arg) {
-      var map;
-      map = arg.map;
-      return function(depsAry) {
-        return map(depsAry, function(el) {
-          return "change:" + el;
-        }).join(' ');
-      };
-    })(_);
+    dependenciesToEvents = function(dependencies) {
+      var el, i, len1, results;
+      results = [];
+      for (i = 0, len1 = dependencies.length; i < len1; i++) {
+        el = dependencies[i];
+        results.push("change:" + el);
+      }
+      return results.join(' ');
+    };
     identityObject = (function(arg) {
       var wasConstructed;
       wasConstructed = arg.wasConstructed;
@@ -322,7 +337,7 @@
       };
     })(_);
     return {
-      VERSION: '1.0.5',
+      VERSION: '1.0.6',
       define: defineProperty,
       InstanceMembers: {},
       ClassMembers: {

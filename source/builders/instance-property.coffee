@@ -10,7 +10,7 @@ class InstanceProperty extends AbstractProperty
       delete @target[@callbackKey]
 
     if @getter and not @options.silent and @options.dependencies?.length > 0
-      eval """ function fn() {
+      evaluate """ function fn() {
                  this["__#{@property}"] = null;
                  this["#{@property}"];
                }

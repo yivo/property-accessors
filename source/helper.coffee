@@ -7,8 +7,11 @@ comparator = do ({wasConstructed, isEqual} = _) ->
     # Other objects compare by value
     else isEqual(a, b)
 
-dependenciesToEvents = do ({map} = _) ->
-  (depsAry) -> map(depsAry, (el) -> "change:#{el}").join(' ')
+dependenciesToEvents = (dependencies) ->
+  results = []
+  for el in dependencies
+    results.push "change:#{el}"
+  results.join(' ')
 
 identityObject = do ({wasConstructed} = _) ->
   (object) ->
