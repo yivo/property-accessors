@@ -3,7 +3,7 @@ prefixErrorMessage = (msg) -> "[Properties] #{msg}"
 class BaseError extends Error
   constructor: ->
     super(@message)
-    Error.captureStackTrace?(this, @name) or (@stack = new Error().stack)
+    Error.captureStackTrace?(this, @name) ? (@stack = new Error().stack)
 
 class ArgumentError extends BaseError
   constructor: (message) ->

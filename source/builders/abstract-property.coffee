@@ -57,8 +57,8 @@ class AbstractProperty
 
   publicSetter: ->
     if @options.readonly
-      evaluate """ function fn() { throw new ReadonlyPropertyError(this, "#{@property}"); } """
-      fn
+      do (property = @property, Error = ReadonlyPropertyError) ->
+        -> throw new Error(this, property)
     else if @setter
       if typeof @setter is 'string'
         evaluate """ function fn(value) { this["#{@setter}"](value); } """
@@ -77,7 +77,7 @@ class AbstractProperty
     do (equal = comparator, property = @property) ->
       (x1) ->
         x0 = this["__#{property}"]
-        unless equal(x1, x0)
+        if not equal(x1, x0)
           this["__#{property}"] = x1
           @notify("change:#{property}", this, x1, x0)
         return

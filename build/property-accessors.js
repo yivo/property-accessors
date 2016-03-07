@@ -92,8 +92,11 @@
 
       AbstractProperty.prototype.publicSetter = function() {
         if (this.options.readonly) {
-          evaluate(" function fn() { throw new ReadonlyPropertyError(this, \"" + this.property + "\"); } ");
-          return fn;
+          return (function(property, Error) {
+            return function() {
+              throw new Error(this, property);
+            };
+          })(this.property, ReadonlyPropertyError);
         } else if (this.setter) {
           if (typeof this.setter === 'string') {
             evaluate(" function fn(value) { this[\"" + this.setter + "\"](value); } ");
@@ -219,8 +222,13 @@
       extend(BaseError, superClass);
 
       function BaseError() {
+        var ref;
         BaseError.__super__.constructor.call(this, this.message);
-        (typeof Error.captureStackTrace === "function" ? Error.captureStackTrace(this, this.name) : void 0) || (this.stack = new Error().stack);
+                if ((ref = typeof Error.captureStackTrace === "function" ? Error.captureStackTrace(this, this.name) : void 0) != null) {
+          ref;
+        } else {
+          this.stack = new Error().stack;
+        };
       }
 
       return BaseError;
