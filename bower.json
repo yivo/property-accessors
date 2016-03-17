@@ -1,6 +1,6 @@
 {
   "name": "property-accessors",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "homepage": "https://github.com/yivo/property-accessors",
   "authors": [
     "Yaroslav Konoplov <yaroslav@inbox.com>"
@@ -18,7 +18,7 @@
     "gulpfile.*"
   ],
   "dependencies": {
-    "lodash": "~3.10.0",
+    "lodash": "^4.5.1",
     "yess": "^1.0.2"
   }
 }
