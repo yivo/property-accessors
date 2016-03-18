@@ -10,10 +10,9 @@ class InstanceProperty extends AbstractProperty
       delete @target[@callbackKey]
 
     if @getter and not @options.silent and @options.dependencies?.length > 0
-      evaluate """ function fn() {
-                 this["__#{@property}"] = null;
-                 this["#{@property}"];
-               }
-           """
-      @target[@callbackKey] = fn
+      @target[@callbackKey] = do (property = @property) ->
+        ->
+          this["__#{property}"] = null
+          this[property]
+          return
       @object.on(dependenciesToEvents(@options.dependencies), fn)

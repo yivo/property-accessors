@@ -11,21 +11,21 @@
   # AMD
   if typeof define is 'function' and define.amd
     define ['yess', 'lodash', 'exports'], (_) ->
-      root.PropertyAccessors = factory(root, Object, Error, eval, _)
+      root.PropertyAccessors = factory(root, Object, Error, _)
 
   # CommonJS
   else if typeof module is 'object' and module isnt null and
           module.exports? and typeof module.exports is 'object'
-    module.exports = factory(root, Object, Error, eval, require('yess'), require('lodash'))
+    module.exports = factory(root, Object, Error, require('yess'), require('lodash'))
 
   # Browser and the rest
   else
-    root.PropertyAccessors = factory(root, Object, Error, eval, root._)
+    root.PropertyAccessors = factory(root, Object, Error, root._)
 
   # No return value
   return
 
-)((__root__, Object, Error, evaluate, _) ->
+)((__root__, Object, Error, _) ->
   class AbstractProperty
   
     {defineProperty} = Object
@@ -62,12 +62,10 @@
       if @getter
         if @options.memo
           if typeof @getter is 'string'
-            evaluate """ function fn() {
-                           if (null == this["_#{@property}"]) { this["_#{@property}"] = this["#{@getter}"](); }
-                           return this["_#{@property}"];
-                         }
-                     """
-            fn
+            do (computer = @getter, property = @property) ->
+              ->
+                this["_#{property}"] ?= this[computer]()
+                this["_#{property}"]
           else
             do (computer = @getter, property = @property) ->
               ->
@@ -75,13 +73,11 @@
                 this["_#{property}"]
         else
           if typeof @getter is 'string'
-            evaluate """ function fn() { return this["#{@getter}"](); } """
-            fn
+            do (computer = @getter) -> -> this[computer]()
           else
             @getter
       else
-        evaluate """ function fn() { return this["_#{@property}"]; } """
-        fn
+        do (property = @property) -> -> this["_#{property}"]
   
     publicSetter: ->
       if @options.readonly
@@ -89,17 +85,14 @@
           -> throw new Error(this, property)
       else if @setter
         if typeof @setter is 'string'
-          evaluate """ function fn(value) { this["#{@setter}"](value); } """
-          fn
+          do (setter = @setter) -> (value) -> this[setter](value); return
         else
           @setter
       else
-        evaluate """ function fn(value) { this["_#{@property}"] = value; } """
-        fn
+        do (property = @property) -> (value) -> this["_#{property}"] = value; return
   
     shadowGetter: ->
-      evaluate """ function fn() { return this["__#{@property}"]; } """
-      fn
+      do (property = @property) -> -> this["__#{property}"]
   
     shadowSetter: ->
       do (equal = comparator, property = @property) ->
@@ -120,16 +113,14 @@
       @Class.deleteInitializer(@initializerKey)
   
       if @getter and not @options.silent and @options.dependencies?.length > 0
-        evaluate """
-          function fn() {
-            this.on("#{dependenciesToEvents(@options.dependencies)}", function() {
-              this["__#{@property}"] = null;
-              this["#{@property}"];
-            });
-          }
-             """
-        @Class.initializer(@initializerKey, fn)
-  
+        @Class.initializer @initializerKey,
+          do (property = @property, events = dependenciesToEvents(@options.dependencies)) ->
+            ->
+              @on events, ->
+                this["__#{property}"] = null
+                this["#{property}"]
+                return
+              return
   class InstanceProperty extends AbstractProperty
     constructor: (@object, @property, @getter, @setter, @options) ->
       super
@@ -142,12 +133,11 @@
         delete @target[@callbackKey]
   
       if @getter and not @options.silent and @options.dependencies?.length > 0
-        evaluate """ function fn() {
-                   this["__#{@property}"] = null;
-                   this["#{@property}"];
-                 }
-             """
-        @target[@callbackKey] = fn
+        @target[@callbackKey] = do (property = @property) ->
+          ->
+            this["__#{property}"] = null
+            this[property]
+            return
         @object.on(dependenciesToEvents(@options.dependencies), fn)
   
   comparator = do ({wasConstructed, isEqual} = _) ->
@@ -273,7 +263,7 @@
       else
         new InstanceProperty(object, property, get, set, options).define()
   
-  VERSION: '1.0.7'
+  VERSION: '1.0.8'
   
   define: defineProperty
   

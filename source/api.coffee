@@ -68,7 +68,7 @@ defineProperty = do ({isFunction, isString, isClass, isObject} = _) ->
     else
       new InstanceProperty(object, property, get, set, options).define()
 
-VERSION: '1.0.7'
+VERSION: '1.0.8'
 
 define: defineProperty
 

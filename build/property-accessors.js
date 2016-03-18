@@ -7,14 +7,14 @@
     root = typeof self === 'object' && (typeof self !== "undefined" && self !== null ? self.self : void 0) === self ? self : typeof global === 'object' && (typeof global !== "undefined" && global !== null ? global.global : void 0) === global ? global : void 0;
     if (typeof define === 'function' && define.amd) {
       define(['yess', 'lodash', 'exports'], function(_) {
-        return root.PropertyAccessors = factory(root, Object, Error, eval, _);
+        return root.PropertyAccessors = factory(root, Object, Error, _);
       });
     } else if (typeof module === 'object' && module !== null && (module.exports != null) && typeof module.exports === 'object') {
-      module.exports = factory(root, Object, Error, eval, require('yess'), require('lodash'));
+      module.exports = factory(root, Object, Error, require('yess'), require('lodash'));
     } else {
-      root.PropertyAccessors = factory(root, Object, Error, eval, root._);
+      root.PropertyAccessors = factory(root, Object, Error, root._);
     }
-  })(function(__root__, Object, Error, evaluate, _) {
+  })(function(__root__, Object, Error, _) {
     var AbstractProperty, ArgumentError, BaseError, InstanceProperty, InvalidPropertyError, InvalidTargetError, PrototypeProperty, ReadonlyPropertyError, comparator, defineProperty, dependenciesToEvents, identityObject, prefixErrorMessage;
     AbstractProperty = (function() {
       var defineProperty, hasOwnProperty;
@@ -63,8 +63,15 @@
         if (this.getter) {
           if (this.options.memo) {
             if (typeof this.getter === 'string') {
-              evaluate(" function fn() {\n  if (null == this[\"_" + this.property + "\"]) { this[\"_" + this.property + "\"] = this[\"" + this.getter + "\"](); }\n  return this[\"_" + this.property + "\"];\n}");
-              return fn;
+              return (function(computer, property) {
+                return function() {
+                  var name1;
+                  if (this[name1 = "_" + property] == null) {
+                    this[name1] = this[computer]();
+                  }
+                  return this["_" + property];
+                };
+              })(this.getter, this.property);
             } else {
               return (function(computer, property) {
                 return function() {
@@ -78,15 +85,21 @@
             }
           } else {
             if (typeof this.getter === 'string') {
-              evaluate(" function fn() { return this[\"" + this.getter + "\"](); } ");
-              return fn;
+              return (function(computer) {
+                return function() {
+                  return this[computer]();
+                };
+              })(this.getter);
             } else {
               return this.getter;
             }
           }
         } else {
-          evaluate(" function fn() { return this[\"_" + this.property + "\"]; } ");
-          return fn;
+          return (function(property) {
+            return function() {
+              return this["_" + property];
+            };
+          })(this.property);
         }
       };
 
@@ -99,20 +112,29 @@
           })(this.property, ReadonlyPropertyError);
         } else if (this.setter) {
           if (typeof this.setter === 'string') {
-            evaluate(" function fn(value) { this[\"" + this.setter + "\"](value); } ");
-            return fn;
+            return (function(setter) {
+              return function(value) {
+                this[setter](value);
+              };
+            })(this.setter);
           } else {
             return this.setter;
           }
         } else {
-          evaluate(" function fn(value) { this[\"_" + this.property + "\"] = value; } ");
-          return fn;
+          return (function(property) {
+            return function(value) {
+              this["_" + property] = value;
+            };
+          })(this.property);
         }
       };
 
       AbstractProperty.prototype.shadowGetter = function() {
-        evaluate(" function fn() { return this[\"__" + this.property + "\"]; } ");
-        return fn;
+        return (function(property) {
+          return function() {
+            return this["__" + property];
+          };
+        })(this.property);
       };
 
       AbstractProperty.prototype.shadowSetter = function() {
@@ -134,11 +156,11 @@
     PrototypeProperty = (function(superClass) {
       extend(PrototypeProperty, superClass);
 
-      function PrototypeProperty(Class, property1, getter, setter, options1) {
+      function PrototypeProperty(Class, property1, getter, setter1, options1) {
         this.Class = Class;
         this.property = property1;
         this.getter = getter;
-        this.setter = setter;
+        this.setter = setter1;
         this.options = options1;
         PrototypeProperty.__super__.constructor.apply(this, arguments);
         this.prototype = this.Class.prototype;
@@ -150,8 +172,14 @@
         var ref;
         this.Class.deleteInitializer(this.initializerKey);
         if (this.getter && !this.options.silent && ((ref = this.options.dependencies) != null ? ref.length : void 0) > 0) {
-          evaluate("function fn() {\n  this.on(\"" + (dependenciesToEvents(this.options.dependencies)) + "\", function() {\n    this[\"__" + this.property + "\"] = null;\n    this[\"" + this.property + "\"];\n  });\n}");
-          return this.Class.initializer(this.initializerKey, fn);
+          return this.Class.initializer(this.initializerKey, (function(property, events) {
+            return function() {
+              this.on(events, function() {
+                this["__" + property] = null;
+                this["" + property];
+              });
+            };
+          })(this.property, dependenciesToEvents(this.options.dependencies)));
         }
       };
 
@@ -161,11 +189,11 @@
     InstanceProperty = (function(superClass) {
       extend(InstanceProperty, superClass);
 
-      function InstanceProperty(object1, property1, getter, setter, options1) {
+      function InstanceProperty(object1, property1, getter, setter1, options1) {
         this.object = object1;
         this.property = property1;
         this.getter = getter;
-        this.setter = setter;
+        this.setter = setter1;
         this.options = options1;
         InstanceProperty.__super__.constructor.apply(this, arguments);
         this.target = this.object;
@@ -179,8 +207,12 @@
           delete this.target[this.callbackKey];
         }
         if (this.getter && !this.options.silent && ((ref = this.options.dependencies) != null ? ref.length : void 0) > 0) {
-          evaluate(" function fn() {\n  this[\"__" + this.property + "\"] = null;\n  this[\"" + this.property + "\"];\n}");
-          this.target[this.callbackKey] = fn;
+          this.target[this.callbackKey] = (function(property) {
+            return function() {
+              this["__" + property] = null;
+              this[property];
+            };
+          })(this.property);
           return this.object.on(dependenciesToEvents(this.options.dependencies), fn);
         }
       };
@@ -345,7 +377,7 @@
       };
     })(_);
     return {
-      VERSION: '1.0.7',
+      VERSION: '1.0.8',
       define: defineProperty,
       InstanceMembers: {},
       ClassMembers: {

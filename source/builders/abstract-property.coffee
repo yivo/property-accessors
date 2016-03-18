@@ -34,12 +34,10 @@ class AbstractProperty
     if @getter
       if @options.memo
         if typeof @getter is 'string'
-          evaluate """ function fn() {
-                         if (null == this["_#{@property}"]) { this["_#{@property}"] = this["#{@getter}"](); }
-                         return this["_#{@property}"];
-                       }
-                   """
-          fn
+          do (computer = @getter, property = @property) ->
+            ->
+              this["_#{property}"] ?= this[computer]()
+              this["_#{property}"]
         else
           do (computer = @getter, property = @property) ->
             ->
@@ -47,13 +45,11 @@ class AbstractProperty
               this["_#{property}"]
       else
         if typeof @getter is 'string'
-          evaluate """ function fn() { return this["#{@getter}"](); } """
-          fn
+          do (computer = @getter) -> -> this[computer]()
         else
           @getter
     else
-      evaluate """ function fn() { return this["_#{@property}"]; } """
-      fn
+      do (property = @property) -> -> this["_#{property}"]
 
   publicSetter: ->
     if @options.readonly
@@ -61,17 +57,14 @@ class AbstractProperty
         -> throw new Error(this, property)
     else if @setter
       if typeof @setter is 'string'
-        evaluate """ function fn(value) { this["#{@setter}"](value); } """
-        fn
+        do (setter = @setter) -> (value) -> this[setter](value); return
       else
         @setter
     else
-      evaluate """ function fn(value) { this["_#{@property}"] = value; } """
-      fn
+      do (property = @property) -> (value) -> this["_#{property}"] = value; return
 
   shadowGetter: ->
-    evaluate """ function fn() { return this["__#{@property}"]; } """
-    fn
+    do (property = @property) -> -> this["__#{property}"]
 
   shadowSetter: ->
     do (equal = comparator, property = @property) ->

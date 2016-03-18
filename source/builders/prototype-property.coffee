@@ -9,12 +9,11 @@ class PrototypeProperty extends AbstractProperty
     @Class.deleteInitializer(@initializerKey)
 
     if @getter and not @options.silent and @options.dependencies?.length > 0
-      evaluate """
-        function fn() {
-          this.on("#{dependenciesToEvents(@options.dependencies)}", function() {
-            this["__#{@property}"] = null;
-            this["#{@property}"];
-          });
-        }
-           """
-      @Class.initializer(@initializerKey, fn)
+      @Class.initializer @initializerKey,
+        do (property = @property, events = dependenciesToEvents(@options.dependencies)) ->
+          ->
+            @on events, ->
+              this["__#{property}"] = null
+              this["#{property}"]
+              return
+            return
