@@ -1,21 +1,21 @@
 ((factory) ->
 
   # Browser and WebWorker
-  root = if typeof self is 'object' and self?.self is self
+  root = if typeof self is 'object' and self isnt null and self.self is self
     self
 
   # Server
-  else if typeof global is 'object' and global?.global is global
+  else if typeof global is 'object' and global isnt null and global.global is global
     global
 
   # AMD
-  if typeof define is 'function' and define.amd
+  if typeof define is 'function' and typeof define.amd is 'object' and define.amd isnt null
     define ['yess', 'lodash', 'exports'], (_) ->
       root.PropertyAccessors = factory(root, Object, Error, _)
 
   # CommonJS
   else if typeof module is 'object' and module isnt null and
-          module.exports? and typeof module.exports is 'object'
+          typeof module.exports is 'object' and module.exports isnt null
     module.exports = factory(root, Object, Error, require('yess'), require('lodash'))
 
   # Browser and the rest
@@ -278,10 +278,14 @@
         idx  = -1
         args.push(arguments[idx]) while ++idx < len
   
-        if every(args, (el) -> isString(el))
+        if every(args, isString)
           defineProperty(this, name) for name in args
         else
-          args.unshift(this)
-          defineProperty.apply(null, args)
+          props = []
+          idx   = -1
+          props.push(args[idx]) while ++idx < len and isString(args[idx])
+          rest  = args.slice(props.length)
+          for prop in props
+            defineProperty.apply(null, [this].concat(prop, rest))
         return
 )

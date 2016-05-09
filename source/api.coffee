@@ -68,7 +68,7 @@ defineProperty = do ({isFunction, isString, isClass, isObject} = _) ->
     else
       new InstanceProperty(object, property, get, set, options).define()
 
-VERSION: '1.0.8'
+VERSION: '1.0.9'
 
 define: defineProperty
 
@@ -83,9 +83,13 @@ ClassMembers:
       idx  = -1
       args.push(arguments[idx]) while ++idx < len
 
-      if every(args, (el) -> isString(el))
+      if every(args, isString)
         defineProperty(this, name) for name in args
       else
-        args.unshift(this)
-        defineProperty.apply(null, args)
+        props = []
+        idx   = -1
+        props.push(args[idx]) while ++idx < len and isString(args[idx])
+        rest  = args.slice(props.length)
+        for prop in props
+          defineProperty.apply(null, [this].concat(prop, rest))
       return

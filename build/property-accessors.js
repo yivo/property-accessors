@@ -4,12 +4,12 @@
 
   (function(factory) {
     var root;
-    root = typeof self === 'object' && (typeof self !== "undefined" && self !== null ? self.self : void 0) === self ? self : typeof global === 'object' && (typeof global !== "undefined" && global !== null ? global.global : void 0) === global ? global : void 0;
-    if (typeof define === 'function' && define.amd) {
+    root = typeof self === 'object' && self !== null && self.self === self ? self : typeof global === 'object' && global !== null && global.global === global ? global : void 0;
+    if (typeof define === 'function' && typeof define.amd === 'object' && define.amd !== null) {
       define(['yess', 'lodash', 'exports'], function(_) {
         return root.PropertyAccessors = factory(root, Object, Error, _);
       });
-    } else if (typeof module === 'object' && module !== null && (module.exports != null) && typeof module.exports === 'object') {
+    } else if (typeof module === 'object' && module !== null && typeof module.exports === 'object' && module.exports !== null) {
       module.exports = factory(root, Object, Error, require('yess'), require('lodash'));
     } else {
       root.PropertyAccessors = factory(root, Object, Error, root._);
@@ -385,23 +385,29 @@
           var every, isString;
           every = arg.every, isString = arg.isString;
           return function() {
-            var args, i, idx, len, len1, name;
+            var args, i, idx, j, len, len1, len2, name, prop, props, rest;
             args = [];
             len = arguments.length;
             idx = -1;
             while (++idx < len) {
               args.push(arguments[idx]);
             }
-            if (every(args, function(el) {
-              return isString(el);
-            })) {
+            if (every(args, isString)) {
               for (i = 0, len1 = args.length; i < len1; i++) {
                 name = args[i];
                 defineProperty(this, name);
               }
             } else {
-              args.unshift(this);
-              defineProperty.apply(null, args);
+              props = [];
+              idx = -1;
+              while (++idx < len && isString(args[idx])) {
+                props.push(args[idx]);
+              }
+              rest = args.slice(props.length);
+              for (j = 0, len2 = props.length; j < len2; j++) {
+                prop = props[j];
+                defineProperty.apply(null, [this].concat(prop, rest));
+              }
             }
           };
         })(_)

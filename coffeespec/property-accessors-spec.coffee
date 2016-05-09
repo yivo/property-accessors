@@ -237,3 +237,13 @@ describe 'PropertyAccessors', ->
       p.name = 'Yaroslav'
       expect(p.name).toBe('Yaroslav')
       expect(n).toBe(1)
+
+  it 'correctly handles situation when multiple properties defined in one call with options', ->
+    out = {}
+    expect ->
+      class out.Foo extends Base
+        @property 'bar', 'baz', readonly: yes
+    .not.toThrow()
+
+    foo = new out.Foo()
+    expect(-> foo.bar = 'value').toThrow()
