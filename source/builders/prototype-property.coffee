@@ -6,7 +6,7 @@ class PrototypeProperty extends AbstractProperty
     @initializerKey = "properties:events:#{@property}"
 
   configureDependencies: ->
-    @Class.deleteInitializer(@initializerKey)
+    @Class.deleteInitializer?(@initializerKey)
 
     if @getter and not @options.silent and @options.dependencies?.length > 0
       @Class.initializer @initializerKey,

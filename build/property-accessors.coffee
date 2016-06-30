@@ -110,7 +110,7 @@
       @initializerKey = "properties:events:#{@property}"
   
     configureDependencies: ->
-      @Class.deleteInitializer(@initializerKey)
+      @Class.deleteInitializer?(@initializerKey)
   
       if @getter and not @options.silent and @options.dependencies?.length > 0
         @Class.initializer @initializerKey,
@@ -129,10 +129,16 @@
   
     configureDependencies: ->
       if @target[@callbackKey]
+        unless PublisherSubscriber?.isEventable(this)
+          throw new BaseError('Object must include PublisherSubscriber')
+  
         @object.off(null, @target[@callbackKey])
         delete @target[@callbackKey]
   
       if @getter and not @options.silent and @options.dependencies?.length > 0
+        unless PublisherSubscriber?.isEventable(this)
+          throw new BaseError('Object must include PublisherSubscriber')
+  
         @target[@callbackKey] = do (property = @property) ->
           ->
             this["__#{property}"] = null
@@ -263,7 +269,7 @@
       else
         new InstanceProperty(object, property, get, set, options).define()
   
-  VERSION: '1.0.9'
+  VERSION: '1.0.10'
   
   define: defineProperty
   

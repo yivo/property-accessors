@@ -169,8 +169,10 @@
       }
 
       PrototypeProperty.prototype.configureDependencies = function() {
-        var ref;
-        this.Class.deleteInitializer(this.initializerKey);
+        var base, ref;
+        if (typeof (base = this.Class).deleteInitializer === "function") {
+          base.deleteInitializer(this.initializerKey);
+        }
         if (this.getter && !this.options.silent && ((ref = this.options.dependencies) != null ? ref.length : void 0) > 0) {
           return this.Class.initializer(this.initializerKey, (function(property, events) {
             return function() {
@@ -203,10 +205,16 @@
       InstanceProperty.prototype.configureDependencies = function() {
         var ref;
         if (this.target[this.callbackKey]) {
+          if (!(typeof PublisherSubscriber !== "undefined" && PublisherSubscriber !== null ? PublisherSubscriber.isEventable(this) : void 0)) {
+            throw new BaseError('Object must include PublisherSubscriber');
+          }
           this.object.off(null, this.target[this.callbackKey]);
           delete this.target[this.callbackKey];
         }
         if (this.getter && !this.options.silent && ((ref = this.options.dependencies) != null ? ref.length : void 0) > 0) {
+          if (!(typeof PublisherSubscriber !== "undefined" && PublisherSubscriber !== null ? PublisherSubscriber.isEventable(this) : void 0)) {
+            throw new BaseError('Object must include PublisherSubscriber');
+          }
           this.target[this.callbackKey] = (function(property) {
             return function() {
               this["__" + property] = null;
@@ -377,7 +385,7 @@
       };
     })(_);
     return {
-      VERSION: '1.0.9',
+      VERSION: '1.0.10',
       define: defineProperty,
       InstanceMembers: {},
       ClassMembers: {
