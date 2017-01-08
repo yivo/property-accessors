@@ -72,4 +72,5 @@ class AbstractProperty
         x0 = this[__property]
         if not equal(x1, x0)
           this[__property] = x1
+          PA.onPropertyChange(this, property, x1, x0)
         return

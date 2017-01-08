@@ -3,3 +3,8 @@ class PrototypeProperty extends AbstractProperty
     super
     @prototype = @Class.prototype
     @target    = @prototype
+  
+  define: ->
+    super
+    PA.onPrototypePropertyDefined(@Class, @property)
+    this
