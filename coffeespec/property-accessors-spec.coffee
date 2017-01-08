@@ -107,27 +107,6 @@ describe 'PropertyAccessors', ->
       expect(calls).toBe(3)
       expect(events).toBe(2)
 
-    it 'correctly works with dependencies', ->
-      class Person extends Base
-        @property 'firstName'
-        @property 'lastName'
-        @property 'fullName', depends: ['firstName', 'lastName'], -> @_fullName = "#{@firstName} #{@lastName}"
-      p = new Person()
-      n = 0
-      p.on 'change:fullName', -> ++n
-
-      p.fullName
-      expect(n).toBe(1)
-      expect(p.fullName).toBe('undefined undefined')
-
-      p.firstName = 'Yaroslav'
-      expect(n).toBe(2)
-      expect(p.fullName).toBe('Yaroslav undefined')
-
-      p.lastName = 'Volkov'
-      expect(n).toBe(3)
-      expect(p.fullName).toBe('Yaroslav Volkov')
-
     it 'returns actual value if value changes during get (memo: true)', ->
       class Person extends Base
         @property 'name', memo: true, -> 'Yaroslav'
@@ -171,30 +150,6 @@ describe 'PropertyAccessors', ->
         expect(n).toBe(3)
         c.count
         expect(n).toBe(3)
-
-      it 'correctly works when there are dependencies', ->
-        class Person extends Base
-          @property 'firstName'
-          @property 'lastName'
-          @property 'fullName', depends: ['firstName', 'lastName'], memo: yes, ->
-            "#{@firstName} #{@lastName}"
-        x = 0
-        y = 0
-        z = 0
-        p = new Person()
-        p.bind
-          'change:firstName': -> ++x
-          'change:lastName':  -> ++y
-          'change:fullName':  -> ++z
-        p.firstName = 'Yaroslav'
-        expect(x).toBe(1)
-        expect(y).toBe(0)
-        expect(z).toBe(1)
-        p.lastName = 'Volkov'
-        expect(p.fullName).toBe('Yaroslav Volkov')
-        expect(x).toBe(1)
-        expect(y).toBe(1)
-        expect(z).toBe(2)
 
   describe 'both readonly and computed property', ->
     it 'correctly gets, sets value and emits events', ->
