@@ -1,23 +1,26 @@
 {
   "name": "property-accessors",
-  "homepage": "https://github.com/yivo/property-accessors",
-  "authors": [
-    "Yaroslav Konoplov <yaroslav@inbox.com>"
-  ],
-  "description": "Property accessors for JavaScript",
+  "description": "Nice Object.defineProperty",
   "main": "build/property-accessors.js",
+  "authors": [
+    "Yaroslav Konoplov <eahome00@gmail.com>"
+  ],
   "license": "MIT",
+  "keywords": [
+    "javascript",
+    "object",
+    "define",
+    "property"
+  ],
+  "homepage": "https://github.com/yivo/property-accessors",
   "ignore": [
+    "**/.*",
     "node_modules",
     "bower_components",
     "test",
-    "tests",
-    "spec",
-    "coffeespec",
-    "gulpfile.*"
+    "tests"
   ],
   "dependencies": {
-    "lodash": "^4.5.1",
-    "yess": "^1.0.2"
+    "lodash": "^4"
   }
 }
