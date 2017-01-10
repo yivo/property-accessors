@@ -1,5 +1,5 @@
 {
-  "name": "property-accessors",
+  "name": "property-accessors-node",
   "version": "1.0.11",
   "description": "Nice Object.defineProperty",
   "main": "build/property-accessors.js",
