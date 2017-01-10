@@ -6,85 +6,82 @@
     var root;
     root = typeof self === 'object' && self !== null && self.self === self ? self : typeof global === 'object' && global !== null && global.global === global ? global : void 0;
     if (typeof define === 'function' && typeof define.amd === 'object' && define.amd !== null) {
-      define(['yess', 'lodash', 'exports'], function(_) {
-        return root.PropertyAccessors = factory(root, Object, Error, _);
+      define(['lodash', 'exports'], function(_) {
+        return root.PropertyAccessors = factory(root, Object, Error, TypeError, _);
       });
     } else if (typeof module === 'object' && module !== null && typeof module.exports === 'object' && module.exports !== null) {
-      module.exports = factory(root, Object, Error, require('yess'), require('lodash'));
+      module.exports = factory(root, Object, Error, TypeError, require('lodash'));
     } else {
-      root.PropertyAccessors = factory(root, Object, Error, root._);
+      root.PropertyAccessors = factory(root, Object, Error, TypeError, root._);
     }
-  })(function(__root__, Object, Error, _) {
-    var AbstractProperty, ArgumentError, BaseError, InstanceProperty, InvalidPropertyError, InvalidTargetError, PrototypeProperty, ReadonlyPropertyError, comparator, defineProperty, dependenciesToEvents, identityObject, prefixErrorMessage;
+  })(function(__root__, Object, Error, TypeError, _) {
+    var AbstractProperty, InstanceProperty, PA, PrototypeProperty, defineComputedProperty, defineProperty;
     AbstractProperty = (function() {
-      var defineProperty, hasOwnProperty;
+      var hasOwnProperty, isString, nativeDefineProperty;
 
       function AbstractProperty() {}
 
-      defineProperty = Object.defineProperty;
+      nativeDefineProperty = Object.defineProperty;
 
       hasOwnProperty = Object.prototype.hasOwnProperty;
 
+      isString = _.isString;
+
       AbstractProperty.prototype.define = function() {
-        defineProperty(this.target, this.property, {
+        nativeDefineProperty(this.target, this.property, {
           get: this.publicGetter(),
           set: this.publicSetter(),
           enumerable: true,
           configurable: true
         });
         if (this.options.silent) {
-          defineProperty(this.target, "_" + this.property, {
+          nativeDefineProperty(this.target, "_" + this.property, {
             writable: true,
             enumerable: false,
             configurable: true
           });
         } else {
-          defineProperty(this.target, "_" + this.property, {
+          nativeDefineProperty(this.target, "_" + this.property, {
             get: this.shadowGetter(),
             set: this.shadowSetter(),
             enumerable: false,
             configurable: true
           });
           if (!hasOwnProperty.call(this.target, "__" + this.property)) {
-            defineProperty(this.target, "__" + this.property, {
+            nativeDefineProperty(this.target, "__" + this.property, {
               enumerable: false,
               writable: true,
               configurable: false
             });
           }
         }
-        if (typeof this.configureDependencies === "function") {
-          this.configureDependencies();
-        }
         return this;
       };
 
       AbstractProperty.prototype.publicGetter = function() {
-        if (this.getter) {
+        if (this.getter != null) {
           if (this.options.memo) {
-            if (typeof this.getter === 'string') {
-              return (function(computer, property) {
+            if (isString(this.getter)) {
+              return (function(computer, _property) {
                 return function() {
-                  var name1;
-                  if (this[name1 = "_" + property] == null) {
-                    this[name1] = this[computer]();
+                  if (this[_property] == null) {
+                    this[_property] = this[computer]();
                   }
-                  return this["_" + property];
+                  return this[_property];
                 };
-              })(this.getter, this.property);
+              })(this.getter, "_" + this.property);
             } else {
-              return (function(computer, property) {
+              return (function(computer, _property) {
                 return function() {
-                  var name1;
-                  if (this[name1 = "_" + property] == null) {
-                    this[name1] = computer.call(this);
+                  if (this[_property] == null) {
+                    this[_property] = computer.call(this);
                   }
-                  return this["_" + property];
+                  return this[_property];
                 };
-              })(this.getter, this.property);
+              })(this.getter, "_" + this.property);
             }
           } else {
-            if (typeof this.getter === 'string') {
+            if (isString(this.getter)) {
               return (function(computer) {
                 return function() {
                   return this[computer]();
@@ -95,11 +92,11 @@
             }
           }
         } else {
-          return (function(property) {
+          return (function(_property) {
             return function() {
-              return this["_" + property];
+              return this[_property];
             };
-          })(this.property);
+          })("_" + this.property);
         }
       };
 
@@ -107,11 +104,11 @@
         if (this.options.readonly) {
           return (function(property, Error) {
             return function() {
-              throw new Error(this, property);
+              throw new Error("[PropertyAccessors] Property " + (typeof this.toString === "function" ? this.toString() : void 0) + "." + property + " is readonly!");
             };
-          })(this.property, ReadonlyPropertyError);
-        } else if (this.setter) {
-          if (typeof this.setter === 'string') {
+          })(this.property, Error);
+        } else if (this.setter != null) {
+          if (isString(this.getter)) {
             return (function(setter) {
               return function(value) {
                 this[setter](value);
@@ -121,33 +118,33 @@
             return this.setter;
           }
         } else {
-          return (function(property) {
+          return (function(_property) {
             return function(value) {
-              this["_" + property] = value;
+              this[_property] = value;
             };
-          })(this.property);
+          })("_" + this.property);
         }
       };
 
       AbstractProperty.prototype.shadowGetter = function() {
-        return (function(property) {
+        return (function(__property) {
           return function() {
-            return this["__" + property];
+            return this[__property];
           };
-        })(this.property);
+        })("__" + this.property);
       };
 
       AbstractProperty.prototype.shadowSetter = function() {
-        return (function(equal, property) {
+        return (function(property, __property) {
           return function(x1) {
             var x0;
-            x0 = this["__" + property];
-            if (!equal(x1, x0)) {
-              this["__" + property] = x1;
-              this.notify("change:" + property, this, x1, x0);
+            x0 = this[__property];
+            if (!PA.comparator(x1, x0)) {
+              this[__property] = x1;
+              PA.onPropertyChange(this, property, x1, x0);
             }
           };
-        })(comparator, this.property);
+        })(this.property, "__" + this.property);
       };
 
       return AbstractProperty;
@@ -156,8 +153,8 @@
     PrototypeProperty = (function(superClass) {
       extend(PrototypeProperty, superClass);
 
-      function PrototypeProperty(Class, property1, getter, setter1, options1) {
-        this.Class = Class;
+      function PrototypeProperty(Class1, property1, getter, setter1, options1) {
+        this.Class = Class1;
         this.property = property1;
         this.getter = getter;
         this.setter = setter1;
@@ -165,24 +162,12 @@
         PrototypeProperty.__super__.constructor.apply(this, arguments);
         this.prototype = this.Class.prototype;
         this.target = this.prototype;
-        this.initializerKey = "properties:events:" + this.property;
       }
 
-      PrototypeProperty.prototype.configureDependencies = function() {
-        var base, ref;
-        if (typeof (base = this.Class).deleteInitializer === "function") {
-          base.deleteInitializer(this.initializerKey);
-        }
-        if (this.getter && !this.options.silent && ((ref = this.options.dependencies) != null ? ref.length : void 0) > 0) {
-          return this.Class.initializer(this.initializerKey, (function(property, events) {
-            return function() {
-              this.on(events, function() {
-                this["__" + property] = null;
-                this["" + property];
-              });
-            };
-          })(this.property, dependenciesToEvents(this.options.dependencies)));
-        }
+      PrototypeProperty.prototype.define = function() {
+        PrototypeProperty.__super__.define.apply(this, arguments);
+        PA.onPrototypePropertyDefined(this.Class, this.property);
+        return this;
       };
 
       return PrototypeProperty;
@@ -199,169 +184,55 @@
         this.options = options1;
         InstanceProperty.__super__.constructor.apply(this, arguments);
         this.target = this.object;
-        this.callbackKey = this.property + "Callback";
       }
 
-      InstanceProperty.prototype.configureDependencies = function() {
-        var ref;
-        if (this.target[this.callbackKey]) {
-          if (!(typeof PublisherSubscriber !== "undefined" && PublisherSubscriber !== null ? PublisherSubscriber.isEventable(this) : void 0)) {
-            throw new BaseError('Object must include PublisherSubscriber');
-          }
-          this.object.off(null, this.target[this.callbackKey]);
-          delete this.target[this.callbackKey];
-        }
-        if (this.getter && !this.options.silent && ((ref = this.options.dependencies) != null ? ref.length : void 0) > 0) {
-          if (!(typeof PublisherSubscriber !== "undefined" && PublisherSubscriber !== null ? PublisherSubscriber.isEventable(this) : void 0)) {
-            throw new BaseError('Object must include PublisherSubscriber');
-          }
-          this.target[this.callbackKey] = (function(property) {
-            return function() {
-              this["__" + property] = null;
-              this[property];
-            };
-          })(this.property);
-          return this.object.on(dependenciesToEvents(this.options.dependencies), fn);
-        }
+      InstanceProperty.prototype.define = function() {
+        InstanceProperty.__super__.define.apply(this, arguments);
+        PA.onInstancePropertyDefined(this.target, this.property);
+        return this;
       };
 
       return InstanceProperty;
 
     })(AbstractProperty);
-    comparator = (function(arg) {
-      var isEqual, wasConstructed;
-      wasConstructed = arg.wasConstructed, isEqual = arg.isEqual;
-      return function(a, b) {
-        if (wasConstructed(a)) {
-          return a === b;
-        } else {
-          return isEqual(a, b);
-        }
-      };
-    })(_);
-    dependenciesToEvents = function(dependencies) {
-      var el, i, len1, results;
-      results = [];
-      for (i = 0, len1 = dependencies.length; i < len1; i++) {
-        el = dependencies[i];
-        results.push("change:" + el);
-      }
-      return results.join(' ');
-    };
-    identityObject = (function(arg) {
-      var wasConstructed;
-      wasConstructed = arg.wasConstructed;
-      return function(object) {
-        return (wasConstructed(object) ? object.constructor.name || object : object).toString();
-      };
-    })(_);
-    prefixErrorMessage = function(msg) {
-      return "[Properties] " + msg;
-    };
-    BaseError = (function(superClass) {
-      extend(BaseError, superClass);
-
-      function BaseError() {
-        var ref;
-        BaseError.__super__.constructor.call(this, this.message);
-                if ((ref = typeof Error.captureStackTrace === "function" ? Error.captureStackTrace(this, this.name) : void 0) != null) {
-          ref;
-        } else {
-          this.stack = new Error().stack;
-        };
-      }
-
-      return BaseError;
-
-    })(Error);
-    ArgumentError = (function(superClass) {
-      extend(ArgumentError, superClass);
-
-      function ArgumentError(message) {
-        this.name = 'ArgumentError';
-        this.message = prefixErrorMessage(message);
-        ArgumentError.__super__.constructor.apply(this, arguments);
-      }
-
-      return ArgumentError;
-
-    })(BaseError);
-    InvalidTargetError = (function(superClass) {
-      extend(InvalidTargetError, superClass);
-
-      function InvalidTargetError() {
-        this.name = 'InvalidTargetError';
-        this.message = prefixErrorMessage("Can't define property on null or undefined");
-        InvalidTargetError.__super__.constructor.apply(this, arguments);
-      }
-
-      return InvalidTargetError;
-
-    })(BaseError);
-    InvalidPropertyError = (function(superClass) {
-      extend(InvalidPropertyError, superClass);
-
-      function InvalidPropertyError(property) {
-        this.name = 'InvalidPropertyError';
-        this.message = prefixErrorMessage("Invalid property name: '" + property + "'");
-        InvalidPropertyError.__super__.constructor.apply(this, arguments);
-      }
-
-      return InvalidPropertyError;
-
-    })(BaseError);
-    ReadonlyPropertyError = (function(superClass) {
-      extend(ReadonlyPropertyError, superClass);
-
-      function ReadonlyPropertyError(object, property) {
-        this.name = 'ReadonlyPropertyError';
-        this.message = prefixErrorMessage("Property " + (identityObject(object)) + "#" + property + " is readonly");
-        ReadonlyPropertyError.__super__.constructor.apply(this, arguments);
-      }
-
-      return ReadonlyPropertyError;
-
-    })(BaseError);
-    defineProperty = (function(arg) {
-      var isAccessor, isClass, isFunction, isObject, isString;
-      isFunction = arg.isFunction, isString = arg.isString, isClass = arg.isClass, isObject = arg.isObject;
+    defineProperty = (function(arg1) {
+      var isAccessor, isClass, isFunction, isPlainObject, isString;
+      isFunction = arg1.isFunction, isString = arg1.isString, isPlainObject = arg1.isPlainObject;
       isAccessor = function(fn) {
         return isString(fn) || isFunction(fn);
       };
-      return function(object, property, arg1, arg2) {
-        var depends, get, memo, options, readonly, set, silent;
+      isClass = isFunction;
+      return function(object, property, arg3, arg4) {
+        var get, memo, options, readonly, ref, set, silent;
+        if (!((2 <= (ref = arguments.length) && ref <= 4))) {
+          throw new TypeError("[PropertyAccessors] Wrong number of arguments in PropertyAccessors.define() " + ("(given " + arguments.length + ", expected 2..4)"));
+        }
         if (object == null) {
-          throw new InvalidTargetError();
+          throw new TypeError("[PropertyAccessors] Can't define property on null or undefined");
         }
         if (!isString(property)) {
-          throw new InvalidPropertyError(property);
+          throw new TypeError("[PropertyAccessors] Expected property name to be a string (given " + property + ")");
         }
-        memo = false;
-        readonly = false;
-        switch (arguments.length) {
-          case 2:
-            break;
-          case 3:
-            if (isAccessor(arg1)) {
-              get = arg1;
-            } else {
-              if (isObject(arg1)) {
-                get = arg1.get, set = arg1.set, memo = arg1.memo, readonly = arg1.readonly, depends = arg1.depends, silent = arg1.silent;
-              } else {
-                throw new ArgumentError("Expected object but given " + arg1);
-              }
-            }
-            break;
-          case 4:
-            if (isObject(arg1) && isAccessor(arg2)) {
-              memo = arg1.memo, readonly = arg1.readonly, depends = arg1.depends, silent = arg1.silent;
-              get = arg2;
-            } else {
-              throw new ArgumentError("Expected object and accessor (function or function name) but given " + arg1 + " and " + arg2);
-            }
-            break;
-          default:
-            throw new ArgumentError('Too many arguments given');
+        if (arguments.length === 2) {
+          memo = false;
+          readonly = false;
+        } else if (arguments.length === 3) {
+          if (isAccessor(arg3)) {
+            get = arg3;
+            memo = false;
+            readonly = false;
+          } else if (isPlainObject(arg3)) {
+            get = arg3.get, set = arg3.set, memo = arg3.memo, readonly = arg3.readonly, silent = arg3.silent;
+          } else {
+            throw new TypeError("[PropertyAccessors] Expected descriptor to be " + "a property getter (accepts function or function name) " + ("or property options as JavaScript object (given " + arg3 + ")"));
+          }
+        } else if (arguments.length === 4) {
+          if (isPlainObject(arg3) && isAccessor(arg4)) {
+            get = arg4;
+            memo = arg3.memo, readonly = arg3.readonly, silent = arg3.silent;
+          } else {
+            throw new TypeError("[PropertyAccessors] Expected descriptor to be combined of two arguments: \n" + ("1. property options as JavaScript object (given " + arg3 + "); \n") + ("2. property getter as function or function name (given " + arg4 + ")."));
+          }
         }
         if (!isAccessor(get)) {
           get = null;
@@ -374,7 +245,6 @@
         options = {
           memo: memo,
           readonly: readonly,
-          dependencies: depends,
           silent: silent
         };
         if (isClass(object)) {
@@ -384,41 +254,82 @@
         }
       };
     })(_);
-    return {
-      VERSION: '1.0.10',
+    defineComputedProperty = (function(arg1) {
+      var isPlainObject;
+      isPlainObject = arg1.isPlainObject;
+      return function() {
+        var arg, args, idx, len;
+        idx = -1;
+        len = arguments.length;
+        args = [];
+        while (++idx < len) {
+          args.push(arguments[idx]);
+        }
+        if (len === 3) {
+          if (isPlainObject(arg = args.pop())) {
+            arg.readonly = true;
+            arg.silent = true;
+          } else {
+            args.push({
+              memo: false,
+              readonly: true,
+              silent: true
+            });
+          }
+          args.push(arg);
+        } else if (len === 4) {
+          if (isPlainObject(args[2])) {
+            args[2].readonly = true;
+            args[2].silent = true;
+          }
+        }
+        return defineProperty.apply(null, args);
+      };
+    })(_);
+    return PA = {
+      VERSION: '1.0.11',
       define: defineProperty,
+      computed: defineComputedProperty,
+      comparator: _.isEqual,
+      onInstancePropertyDefined: function(object, property) {},
+      onPrototypePropertyDefined: function(Class, property) {},
+      onPropertyChange: function(object, property, newvalue, oldvalue) {},
       InstanceMembers: {},
       ClassMembers: {
-        property: (function(arg) {
-          var every, isString;
-          every = arg.every, isString = arg.isString;
+        property: (function(arg1) {
+          var isString;
+          isString = arg1.isString;
           return function() {
-            var args, i, idx, j, len, len1, len2, name, prop, props, rest;
-            args = [];
-            len = arguments.length;
+            var i, idx, len, len1, prop, props, rest;
             idx = -1;
+            len = arguments.length;
+            props = [];
+            rest = [];
+            while (++idx < len && isString(arguments[idx])) {
+              props.push(arguments[idx]);
+            }
+            --idx;
             while (++idx < len) {
-              args.push(arguments[idx]);
+              rest.push(arguments[idx]);
             }
-            if (every(args, isString)) {
-              for (i = 0, len1 = args.length; i < len1; i++) {
-                name = args[i];
-                defineProperty(this, name);
-              }
-            } else {
-              props = [];
-              idx = -1;
-              while (++idx < len && isString(args[idx])) {
-                props.push(args[idx]);
-              }
-              rest = args.slice(props.length);
-              for (j = 0, len2 = props.length; j < len2; j++) {
-                prop = props[j];
-                defineProperty.apply(null, [this].concat(prop, rest));
-              }
+            for (i = 0, len1 = props.length; i < len1; i++) {
+              prop = props[i];
+              defineProperty.apply(null, [this].concat(prop, rest));
             }
+            return this;
           };
-        })(_)
+        })(_),
+        computed: function() {
+          var args, idx, len;
+          idx = -1;
+          len = arguments.length;
+          args = [];
+          while (++idx < len) {
+            args.push(arguments[idx]);
+          }
+          defineComputedProperty.apply(null, [this].concat(args));
+          return this;
+        }
       }
     };
   });

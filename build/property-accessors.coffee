@@ -10,288 +10,257 @@
 
   # AMD
   if typeof define is 'function' and typeof define.amd is 'object' and define.amd isnt null
-    define ['yess', 'lodash', 'exports'], (_) ->
-      root.PropertyAccessors = factory(root, Object, Error, _)
+    define ['lodash', 'exports'], (_) ->
+      root.PropertyAccessors = factory(root, Object, Error, TypeError, _)
 
   # CommonJS
   else if typeof module is 'object' and module isnt null and
           typeof module.exports is 'object' and module.exports isnt null
-    module.exports = factory(root, Object, Error, require('yess'), require('lodash'))
+    module.exports = factory(root, Object, Error, TypeError, require('lodash'))
 
   # Browser and the rest
   else
-    root.PropertyAccessors = factory(root, Object, Error, root._)
+    root.PropertyAccessors = factory(root, Object, Error, TypeError, root._)
 
   # No return value
   return
 
-)((__root__, Object, Error, _) ->
+)((__root__, Object, Error, TypeError, _) ->
   class AbstractProperty
   
-    {defineProperty} = Object
-    {hasOwnProperty} = Object.prototype
-  
+    nativeDefineProperty = Object.defineProperty
+    {hasOwnProperty}     = Object.prototype
+    {isString}           = _
+    
     define: ->
-      defineProperty @target, @property,
+      nativeDefineProperty @target, @property,
         get:          @publicGetter()
         set:          @publicSetter()
         enumerable:   yes
         configurable: yes
   
       if @options.silent
-        defineProperty @target, "_#{@property}",
+        nativeDefineProperty @target, "_#{@property}",
           writable:     yes
           enumerable:   no
           configurable: yes
       else
-        defineProperty @target, "_#{@property}",
+        nativeDefineProperty @target, "_#{@property}",
           get:          @shadowGetter()
           set:          @shadowSetter()
           enumerable:   no
           configurable: yes
   
         unless hasOwnProperty.call(@target, "__#{@property}")
-          defineProperty @target, "__#{@property}",
+          nativeDefineProperty @target, "__#{@property}",
             enumerable:   no
             writable:     yes
             configurable: no
-      @configureDependencies?()
       this
   
     publicGetter: ->
-      if @getter
+      if @getter?
         if @options.memo
-          if typeof @getter is 'string'
-            do (computer = @getter, property = @property) ->
+          if isString(@getter)
+            do (computer = @getter, _property = "_#{@property}") ->
               ->
-                this["_#{property}"] ?= this[computer]()
-                this["_#{property}"]
+                this[_property] ?= this[computer]()
+                this[_property]
           else
-            do (computer = @getter, property = @property) ->
+            do (computer = @getter, _property = "_#{@property}") ->
               ->
-                this["_#{property}"] ?= computer.call(this)
-                this["_#{property}"]
+                this[_property] ?= computer.call(this)
+                this[_property]
         else
-          if typeof @getter is 'string'
+          if isString(@getter)
             do (computer = @getter) -> -> this[computer]()
           else
             @getter
       else
-        do (property = @property) -> -> this["_#{property}"]
+        do (_property = "_#{@property}") -> -> this[_property]
   
     publicSetter: ->
       if @options.readonly
-        do (property = @property, Error = ReadonlyPropertyError) ->
-          -> throw new Error(this, property)
-      else if @setter
-        if typeof @setter is 'string'
+        do (property = @property, Error = Error) ->
+          -> throw new Error("[PropertyAccessors] Property #{this.toString?()}.#{property} is readonly!")
+      else if @setter?
+        if isString(@getter)
           do (setter = @setter) -> (value) -> this[setter](value); return
         else
           @setter
       else
-        do (property = @property) -> (value) -> this["_#{property}"] = value; return
+        do (_property = "_#{@property}") -> (value) -> this[_property] = value; return
   
     shadowGetter: ->
-      do (property = @property) -> -> this["__#{property}"]
+      do (__property = "__#{@property}") -> -> this[__property]
   
     shadowSetter: ->
-      do (equal = comparator, property = @property) ->
+      do (property = @property, __property = "__#{@property}") ->
         (x1) ->
-          x0 = this["__#{property}"]
-          if not equal(x1, x0)
-            this["__#{property}"] = x1
-            @notify("change:#{property}", this, x1, x0)
+          x0 = this[__property]
+          if not PA.comparator(x1, x0)
+            this[__property] = x1
+            PA.onPropertyChange(this, property, x1, x0)
           return
+  
   class PrototypeProperty extends AbstractProperty
     constructor: (@Class, @property, @getter, @setter, @options) ->
       super
-      @prototype      = @Class.prototype
-      @target         = @prototype
-      @initializerKey = "properties:events:#{@property}"
+      @prototype = @Class.prototype
+      @target    = @prototype
+    
+    define: ->
+      super
+      PA.onPrototypePropertyDefined(@Class, @property)
+      this
   
-    configureDependencies: ->
-      @Class.deleteInitializer?(@initializerKey)
-  
-      if @getter and not @options.silent and @options.dependencies?.length > 0
-        @Class.initializer @initializerKey,
-          do (property = @property, events = dependenciesToEvents(@options.dependencies)) ->
-            ->
-              @on events, ->
-                this["__#{property}"] = null
-                this["#{property}"]
-                return
-              return
   class InstanceProperty extends AbstractProperty
     constructor: (@object, @property, @getter, @setter, @options) ->
       super
-      @target      = @object
-      @callbackKey = "#{@property}Callback"
+      @target = @object
   
-    configureDependencies: ->
-      if @target[@callbackKey]
-        unless PublisherSubscriber?.isEventable(this)
-          throw new BaseError('Object must include PublisherSubscriber')
-  
-        @object.off(null, @target[@callbackKey])
-        delete @target[@callbackKey]
-  
-      if @getter and not @options.silent and @options.dependencies?.length > 0
-        unless PublisherSubscriber?.isEventable(this)
-          throw new BaseError('Object must include PublisherSubscriber')
-  
-        @target[@callbackKey] = do (property = @property) ->
-          ->
-            this["__#{property}"] = null
-            this[property]
-            return
-        @object.on(dependenciesToEvents(@options.dependencies), fn)
-  
-  comparator = do ({wasConstructed, isEqual} = _) ->
-    (a, b) ->
-      if wasConstructed(a)
-        # Custom objects, created with new, compare by strict equality
-        a is b
-  
-      # Other objects compare by value
-      else isEqual(a, b)
-  
-  dependenciesToEvents = (dependencies) ->
-    results = []
-    for el in dependencies
-      results.push "change:#{el}"
-    results.join(' ')
-  
-  identityObject = do ({wasConstructed} = _) ->
-    (object) ->
-      (if wasConstructed(object)
-        object.constructor.name or object
-      else
-        object).toString()
-  
-  prefixErrorMessage = (msg) -> "[Properties] #{msg}"
-  
-  class BaseError extends Error
-    constructor: ->
-      super(@message)
-      Error.captureStackTrace?(this, @name) ? (@stack = new Error().stack)
-  
-  class ArgumentError extends BaseError
-    constructor: (message) ->
-      @name    = 'ArgumentError'
-      @message = prefixErrorMessage(message)
+    define: ->
       super
+      PA.onInstancePropertyDefined(@target, @property)
+      this
   
-  class InvalidTargetError extends BaseError
-    constructor: ->
-      @name    = 'InvalidTargetError'
-      @message = prefixErrorMessage("Can't define property on null or undefined")
-      super
-  
-  class InvalidPropertyError extends BaseError
-    constructor: (property) ->
-      @name    = 'InvalidPropertyError'
-      @message = prefixErrorMessage("Invalid property name: '#{property}'")
-      super
-  
-  class ReadonlyPropertyError extends BaseError
-    constructor: (object, property) ->
-      @name    = 'ReadonlyPropertyError'
-      @message = prefixErrorMessage("Property #{identityObject(object)}##{property} is readonly")
-      super
-  
-  # Signature 1:
-  #   property this, 'name'
+  # Available signatures:
+  #   * property this, 'name'
+  #   * property this, 'name', readonly: yes
+  #   * property this, 'name', readonly: yes, -> 'Tomas'
+  #   * property this, 'name', -> 'Tomas'
+  #   * property this, 'name', get: -> 'Tomas'
+  #   * property this, 'fullname',
+  #       get: -> "#{@firstname} #{@lastname}"
+  #       set: (fullname) ->
+  #         [@firstname, @lastname] = fullname.split(/\s+/)
+  #         @_fullname = fullname
   #
-  # Signature 2:
-  #   property this, 'name', set: no
-  #
-  # Signature 3:
-  #   property this, 'name', readonly: yes
-  #
-  # Signature 4:
-  #   property this, 'name', -> 'Tomas'
-  #
-  # Signature 5:
-  #   property this, 'name', get: -> 'Tomas'
-  #
-  # Signature 6:
-  #   property this, 'fullName', depends: ['firstName', 'lastName'], -> "#{@firstName} #{@lastName}"
-  #
-  # Signature 7:
-  #   property this, 'fullName',
-  #     set: (fullName) ->
-  #       [@firstName, @lastName] = fullName.split(/\s+/)
-  #       @_fullName = fullName
-  #     get: -> "#{@firstName} #{@lastName}"
-  #     depends: ['firstName', 'lastName']
-  
-  defineProperty = do ({isFunction, isString, isClass, isObject} = _) ->
+  defineProperty = do ({isFunction, isString, isPlainObject} = _) ->
     isAccessor = (fn) -> isString(fn) or isFunction(fn)
+    isClass    = isFunction
   
-    (object, property, arg1, arg2) ->
+    (object, property, arg3, arg4) ->
   
-      throw new InvalidTargetError()           unless object?
-      throw new InvalidPropertyError(property) unless isString(property)
+      unless 2 <= arguments.length <= 4
+        throw new TypeError "[PropertyAccessors] Wrong number of arguments in PropertyAccessors.define() " +
+                            "(given #{arguments.length}, expected 2..4)"
+      
+      unless object?
+        throw new TypeError "[PropertyAccessors] Can't define property on null or undefined"
+      
+      unless isString(property)
+        throw new TypeError "[PropertyAccessors] Expected property name to be a string (given #{property})"
   
-      memo     = false
-      readonly = false
+      if arguments.length is 2
+        memo     = false
+        readonly = false
   
-      switch arguments.length
-        # Signature: 1
-        when 2 then break
-  
-        # Signature: 2, 3, 4, 5, 7
-        when 3
-          # Signature 4
-          if isAccessor(arg1) then get = arg1
-  
-          # Signature: 2, 3, 5, 7
-          else
-            if isObject(arg1) then {get, set, memo, readonly, depends, silent} = arg1
-            else throw new ArgumentError("Expected object but given #{arg1}")
-  
-        # Signature: 6
-        when 4
-          if isObject(arg1) and isAccessor(arg2)
-            {memo, readonly, depends, silent} = arg1; get = arg2
-          else throw new ArgumentError("Expected object and accessor (function or function name) but given #{arg1} and #{arg2}")
-  
-        else throw new ArgumentError('Too many arguments given')
-  
+      else if arguments.length is 3
+        if isAccessor(arg3)
+          get      = arg3
+          memo     = false
+          readonly = false
+        else if isPlainObject(arg3)
+          {get, set, memo, readonly, silent} = arg3
+        else
+          throw new TypeError "[PropertyAccessors] Expected descriptor to be " +
+                              "a property getter (accepts function or function name) " +
+                              "or property options as JavaScript object (given #{arg3})"
+      
+      else if arguments.length is 4
+        if isPlainObject(arg3) and isAccessor(arg4)
+          get                      = arg4
+          {memo, readonly, silent} = arg3
+        else
+          throw new TypeError "[PropertyAccessors] Expected descriptor to be combined of two arguments: \n" +
+                              "1. property options as JavaScript object (given #{arg3}); \n" +
+                              "2. property getter as function or function name (given #{arg4})."
+    
       get      = null unless isAccessor(get)
       set      = null unless isAccessor(set)
       memo     = !!memo
       readonly = !!readonly
-      options  = {memo, readonly, dependencies: depends, silent}
+      options  = {memo, readonly, silent}
   
       if isClass(object)
         new PrototypeProperty(object, property, get, set, options).define()
       else
         new InstanceProperty(object, property, get, set, options).define()
   
-  VERSION: '1.0.10'
+  defineComputedProperty = do ({isPlainObject} = _) ->
+    ->
+      idx  = -1
+      len  = arguments.length
+      args = []
+      args.push(arguments[idx]) while ++idx < len
   
-  define: defineProperty
-  
-  InstanceMembers: {}
-  
-  ClassMembers:
-  
-    property: do ({every, isString} = _) ->
-      ->
-        args = []
-        len  = arguments.length
-        idx  = -1
-        args.push(arguments[idx]) while ++idx < len
-  
-        if every(args, isString)
-          defineProperty(this, name) for name in args
+      if len is 3
+        #             property
+        #        object  |   |  options with getter
+        #          |  |  |   |  |                       |
+        # computed this, 'foo', memo: true, get: -> 'bar'
+        if isPlainObject(arg = args.pop())
+          arg.readonly = true
+          arg.silent   = true
+          
+        #             property
+        #        object  |   |  getter
+        #          |  |  |   |  |      |
+        # computed this, 'foo', -> 'bar'
         else
-          props = []
+          args.push(memo: false, readonly: true, silent: true)
+          
+        args.push(arg)
+  
+      #             property              getter
+      #        object  |   |  options     |      |
+      #          |  |  |   |  |        |
+      # computed this, 'foo', memo: true, -> 'bar'
+      else if len is 4
+        if isPlainObject(args[2])
+          args[2].readonly = true
+          args[2].silent   = true
+      
+      defineProperty.apply(null, args)
+  
+  
+  PA = 
+    VERSION:    '1.0.11'
+    define:     defineProperty
+    computed:   defineComputedProperty
+    comparator: _.isEqual
+    
+    onInstancePropertyDefined:  (object, property) ->
+    onPrototypePropertyDefined: (Class, property) ->
+    onPropertyChange:           (object, property, newvalue, oldvalue) ->
+    
+    InstanceMembers: {}
+    
+    ClassMembers:
+      property: do ({isString} = _) ->
+        ->
           idx   = -1
-          props.push(args[idx]) while ++idx < len and isString(args[idx])
-          rest  = args.slice(props.length)
+          len   = arguments.length
+          props = []
+          rest  = []
+  
+          while ++idx < len and isString(arguments[idx])
+            props.push(arguments[idx])
+          
+          --idx
+          while ++idx < len
+            rest.push(arguments[idx])
+            
           for prop in props
             defineProperty.apply(null, [this].concat(prop, rest))
-        return
+          this
+          
+      computed: ->
+        idx  = -1
+        len  = arguments.length
+        args = []
+        args.push(arguments[idx]) while ++idx < len
+        defineComputedProperty.apply(null, [this].concat(args))
+        this
 )
