@@ -1,39 +1,44 @@
 # @include builders/abstract-property.coffee
 # @include builders/prototype-property.coffee
 # @include builders/instance-property.coffee
-# @include helper.coffee
-# @include errors.coffee
 # @include api.coffee
 
 PA = 
-  VERSION: '1.0.10'
+  VERSION:    '1.0.11'
+  define:     defineProperty
+  computed:   defineComputedProperty
+  comparator: _.isEqual
   
-  define: defineProperty
-
-  onInstancePropertyDefined: (object, property) ->
-  
+  onInstancePropertyDefined:  (object, property) ->
   onPrototypePropertyDefined: (Class, property) ->
-  
-  onPropertyChange: (object, property, newvalue, oldvalue) ->
+  onPropertyChange:           (object, property, newvalue, oldvalue) ->
   
   InstanceMembers: {}
   
   ClassMembers:
-  
-    property: do ({every, isString} = _) ->
+    property: do ({isString} = _) ->
       ->
-        args = []
-        len  = arguments.length
-        idx  = -1
-        args.push(arguments[idx]) while ++idx < len
-  
-        if every(args, isString)
-          defineProperty(this, name) for name in args
-        else
-          props = []
-          idx   = -1
-          props.push(args[idx]) while ++idx < len and isString(args[idx])
-          rest  = args.slice(props.length)
-          for prop in props
-            defineProperty.apply(null, [this].concat(prop, rest))
-        return
+        idx   = -1
+        len   = arguments.length
+        props = []
+        rest  = []
+
+        while ++idx < len and isString(arguments[idx])
+          props.push(arguments[idx])
+        
+        --idx
+        while ++idx < len
+          rest.push(arguments[idx])
+          
+        for prop in props
+          defineProperty.apply(null, [this].concat(prop, rest))
+        this
+        
+    computed: ->
+      idx  = -1
+      len  = arguments.length
+      args = []
+      args.push(arguments[idx]) while ++idx < len
+      defineComputedProperty.apply(null, [this].concat(args))
+      this
+

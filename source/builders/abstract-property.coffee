@@ -53,8 +53,8 @@ class AbstractProperty
 
   publicSetter: ->
     if @options.readonly
-      do (property = @property, Error = ReadonlyPropertyError) ->
-        -> throw new Error(this, property)
+      do (property = @property, Error = Error) ->
+        -> throw new Error("[PropertyAccessors] Property #{this.toString?()}.#{property} is readonly!")
     else if @setter?
       if isString(@getter)
         do (setter = @setter) -> (value) -> this[setter](value); return
@@ -64,13 +64,13 @@ class AbstractProperty
       do (_property = "_#{@property}") -> (value) -> this[_property] = value; return
 
   shadowGetter: ->
-    do (property = "__#{@property}") -> -> this[property]
+    do (__property = "__#{@property}") -> -> this[__property]
 
   shadowSetter: ->
-    do (equal = comparator, property = @property, __property = "__#{@property}") ->
+    do (property = @property, __property = "__#{@property}") ->
       (x1) ->
         x0 = this[__property]
-        if not equal(x1, x0)
+        if not PA.comparator(x1, x0)
           this[__property] = x1
           PA.onPropertyChange(this, property, x1, x0)
         return

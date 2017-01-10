@@ -1,95 +1,104 @@
-# Signature 1:
-#   property this, 'name'
-#
-# Signature 2:
-#   property this, 'name', set: no
-#
-# Signature 3:
-#   property this, 'name', readonly: yes
-#
-# Signature 4:
-#   property this, 'name', -> 'Tomas'
-#
-# Signature 5:
-#   property this, 'name', get: -> 'Tomas'
-#
-# Signature 6:
-#   property this, 'fullName', depends: ['firstName', 'lastName'], -> "#{@firstName} #{@lastName}"
-#
-# Signature 7:
-#   property this, 'fullName',
-#     set: (fullName) ->
-#       [@firstName, @lastName] = fullName.split(/\s+/)
-#       @_fullName = fullName
-#     get: -> "#{@firstName} #{@lastName}"
-#     depends: ['firstName', 'lastName']
-
-defineProperty = do ({isFunction, isString, isClass, isObject} = _) ->
+defineProperty = do ({isFunction, isString, isPlainObject} = _) ->
   isAccessor = (fn) -> isString(fn) or isFunction(fn)
+  isClass    = isFunction
 
-  (object, property, arg1, arg2) ->
+  (object, property, arg3, arg4) ->
 
-    throw new InvalidTargetError()           unless object?
-    throw new InvalidPropertyError(property) unless isString(property)
+    unless 2 <= arguments.length <= 4
+      throw new TypeError "[PropertyAccessors] Wrong number of arguments in PropertyAccessors.define() " +
+                          "(given #{arguments.length}, expected 2..4)"
+    
+    unless object?
+      throw new TypeError "[PropertyAccessors] Can't define property on null or undefined"
+    
+    unless isString(property)
+      throw new TypeError "[PropertyAccessors] Expected property name to be a string (given #{property})"
 
-    memo     = false
-    readonly = false
+    #        object  property 
+    #          |  |  |   |
+    # property this, 'foo'
+    if arguments.length is 2
+      memo     = false
+      readonly = false
 
-    switch arguments.length
-      # Signature: 1
-      when 2 then break
-
-      # Signature: 2, 3, 4, 5, 7
-      when 3
-        # Signature 4
-        if isAccessor(arg1) then get = arg1
-
-        # Signature: 2, 3, 5, 7
-        else
-          if isObject(arg1) then {get, set, memo, readonly, depends, silent} = arg1
-          else throw new ArgumentError("Expected object but given #{arg1}")
-
-      # Signature: 6
-      when 4
-        if isObject(arg1) and isAccessor(arg2)
-          {memo, readonly, depends, silent} = arg1; get = arg2
-        else throw new ArgumentError("Expected object and accessor (function or function name) but given #{arg1} and #{arg2}")
-
-      else throw new ArgumentError('Too many arguments given')
-
+    else if arguments.length is 3
+      #             property
+      #        object  |   |  getter
+      #          |  |  |   |  |      |
+      # property this, 'foo', -> 'baz'
+      if isAccessor(arg3)
+        get      = arg3
+        memo     = false
+        readonly = false
+        
+      #             property
+      #        object  |   |  options with getter and setter
+      #          |  |  |   |  |                       |
+      # property this, 'foo', memo: true, get: -> 'baz'
+      else if isPlainObject(arg3)
+        {get, set, memo, readonly, silent} = arg3
+        
+      else
+        throw new TypeError "[PropertyAccessors] Expected descriptor to be " +
+                            "a property getter (accepts function or function name) " +
+                            "or property options as JavaScript object (given #{arg3})"
+    
+    else if arguments.length is 4
+      #             property
+      #        object  |   |  options     getter
+      #          |  |  |   |  |        |  |      |
+      # property this, 'foo', memo: true, -> 'baz'
+      if isPlainObject(arg3) and isAccessor(arg4)
+        get                      = arg4
+        {memo, readonly, silent} = arg3
+      else
+        throw new TypeError "[PropertyAccessors] Expected descriptor to be combined of two arguments: \n" +
+                            "1. property options as JavaScript object (given #{arg3}); \n" +
+                            "2. property getter as function or function name (given #{arg4})."
+  
     get      = null unless isAccessor(get)
     set      = null unless isAccessor(set)
     memo     = !!memo
     readonly = !!readonly
-    options  = {memo, readonly, dependencies: depends, silent}
+    options  = {memo, readonly, silent}
 
     if isClass(object)
       new PrototypeProperty(object, property, get, set, options).define()
     else
       new InstanceProperty(object, property, get, set, options).define()
 
-VERSION: '1.0.10'
+defineComputedProperty = do ({isPlainObject} = _) ->
+  ->
+    idx  = -1
+    len  = arguments.length
+    args = []
+    args.push(arguments[idx]) while ++idx < len
 
-define: defineProperty
-
-InstanceMembers: {}
-
-ClassMembers:
-
-  property: do ({every, isString} = _) ->
-    ->
-      args = []
-      len  = arguments.length
-      idx  = -1
-      args.push(arguments[idx]) while ++idx < len
-
-      if every(args, isString)
-        defineProperty(this, name) for name in args
+    if len is 3
+      #             property
+      #        object  |   |  options with getter
+      #          |  |  |   |  |                       |
+      # computed this, 'foo', memo: true, get: -> 'bar'
+      if isPlainObject(arg = args.pop())
+        arg.readonly = true
+        arg.silent   = true
+        
+      #             property
+      #        object  |   |  getter
+      #          |  |  |   |  |      |
+      # computed this, 'foo', -> 'bar'
       else
-        props = []
-        idx   = -1
-        props.push(args[idx]) while ++idx < len and isString(args[idx])
-        rest  = args.slice(props.length)
-        for prop in props
-          defineProperty.apply(null, [this].concat(prop, rest))
-      return
+        args.push(memo: false, readonly: true, silent: true)
+        
+      args.push(arg)
+
+    #             property              getter
+    #        object  |   |  options     |      |
+    #          |  |  |   |  |        |
+    # computed this, 'foo', memo: true, -> 'bar'
+    else if len is 4
+      if isPlainObject(args[2])
+        args[2].readonly = true
+        args[2].silent   = true
+    
+    defineProperty.apply(null, args)
