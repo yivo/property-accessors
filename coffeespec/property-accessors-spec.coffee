@@ -1,11 +1,8 @@
 describe 'PropertyAccessors', ->
 
   class Base
-    @include Callbacks
     @include PropertyAccessors
     @include PublisherSubscriber
-
-    constructor: -> @initialize()
 
   describe 'simple property', ->
     it 'correctly gets and sets value', ->
@@ -53,7 +50,7 @@ describe 'PropertyAccessors', ->
       p = new Person()
       expect(-> p.name = 'Yaroslav').toThrow()
 
-  describe 'property with silent events', ->
+  describe 'silent property', ->
     it "doesn't emit events", ->
       class Person extends Base
         @property 'name', silent: yes
@@ -194,11 +191,8 @@ describe 'PropertyAccessors', ->
       expect(n).toBe(1)
 
   it 'correctly handles situation when multiple properties defined in one call with options', ->
-    out = {}
-    expect ->
-      class out.Foo extends Base
-        @property 'bar', 'baz', readonly: yes
+    class Foo extends Base
+    expect -> Foo.property 'bar', 'baz', readonly: yes
     .not.toThrow()
-
-    foo = new out.Foo()
+    foo = new Foo()
     expect(-> foo.bar = 'value').toThrow()
