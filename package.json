@@ -1,6 +1,6 @@
 {
   "name": "property-accessors-node",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Nice Object.defineProperty",
   "main": "build/property-accessors.js",
   "dependencies": {
