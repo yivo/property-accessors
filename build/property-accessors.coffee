@@ -1,26 +1,33 @@
+###!
+# property-accessors 1.0.13 | https://github.com/yivo/property-accessors | MIT License
+###
+
 ((factory) ->
 
-  # Browser and WebWorker
-  root = if typeof self is 'object' and self isnt null and self.self is self
-    self
+  __root__ = 
+    # The root object for Browser or Web Worker
+    if typeof self is 'object' and self isnt null and self.self is self
+      self
 
-  # Server
-  else if typeof global is 'object' and global isnt null and global.global is global
-    global
+    # The root object for Server-side JavaScript Runtime
+    else if typeof global is 'object' and global isnt null and global.global is global
+      global
 
-  # AMD
+    else
+      Function('return this')()
+
+  # Asynchronous Module Definition (AMD)
   if typeof define is 'function' and typeof define.amd is 'object' and define.amd isnt null
-    define ['lodash', 'exports'], (_) ->
-      root.PropertyAccessors = factory(root, Object, Error, TypeError, _)
+    define ['lodash'], (_) ->
+      __root__.PropertyAccessors = factory(__root__, Object, Error, TypeError, _)
 
-  # CommonJS
-  else if typeof module is 'object' and module isnt null and
-          typeof module.exports is 'object' and module.exports isnt null
-    module.exports = factory(root, Object, Error, TypeError, require('lodash'))
+  # Server-side JavaScript Runtime compatible with CommonJS Module Spec
+  else if typeof module is 'object' and module isnt null and typeof module.exports is 'object' and module.exports isnt null
+    module.exports = factory(__root__, Object, Error, TypeError, require('lodash'))
 
-  # Browser and the rest
+  # Browser, Web Worker and the rest
   else
-    root.PropertyAccessors = factory(root, Object, Error, TypeError, root._)
+    __root__.PropertyAccessors = factory(__root__, Object, Error, TypeError, _)
 
   # No return value
   return
@@ -124,18 +131,6 @@
       PA.onInstancePropertyDefined(@target, @property)
       this
   
-  # Available signatures:
-  #   * property this, 'name'
-  #   * property this, 'name', readonly: yes
-  #   * property this, 'name', readonly: yes, -> 'Tomas'
-  #   * property this, 'name', -> 'Tomas'
-  #   * property this, 'name', get: -> 'Tomas'
-  #   * property this, 'fullname',
-  #       get: -> "#{@firstname} #{@lastname}"
-  #       set: (fullname) ->
-  #         [@firstname, @lastname] = fullname.split(/\s+/)
-  #         @_fullname = fullname
-  #
   defineProperty = do ({isFunction, isString, isPlainObject} = _) ->
     isAccessor = (fn) -> isString(fn) or isFunction(fn)
     isClass    = isFunction
@@ -152,23 +147,40 @@
       unless isString(property)
         throw new TypeError "[PropertyAccessors] Expected property name to be a string (given #{property})"
   
+      #        object  property 
+      #          |  |  |   |
+      # property this, 'foo'
       if arguments.length is 2
         memo     = false
         readonly = false
   
       else if arguments.length is 3
+        #             property
+        #        object  |   |  getter
+        #          |  |  |   |  |      |
+        # property this, 'foo', -> 'baz'
         if isAccessor(arg3)
           get      = arg3
           memo     = false
           readonly = false
+          
+        #             property
+        #        object  |   |  options with getter and setter
+        #          |  |  |   |  |                       |
+        # property this, 'foo', memo: true, get: -> 'baz'
         else if isPlainObject(arg3)
           {get, set, memo, readonly, silent} = arg3
+          
         else
           throw new TypeError "[PropertyAccessors] Expected descriptor to be " +
                               "a property getter (accepts function or function name) " +
                               "or property options as JavaScript object (given #{arg3})"
       
       else if arguments.length is 4
+        #             property
+        #        object  |   |  options     getter
+        #          |  |  |   |  |        |  |      |
+        # property this, 'foo', memo: true, -> 'baz'
         if isPlainObject(arg3) and isAccessor(arg4)
           get                      = arg4
           {memo, readonly, silent} = arg3
@@ -226,7 +238,7 @@
   
   
   PA = 
-    VERSION:    '1.0.11'
+    VERSION:    '1.0.13'
     define:     defineProperty
     computed:   defineComputedProperty
     comparator: _.isEqual

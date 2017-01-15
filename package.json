@@ -1,24 +1,24 @@
 {
   "name": "property-accessors-node",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "Nice Object.defineProperty",
   "main": "build/property-accessors.js",
   "dependencies": {
-    "lodash": "^4"
+    "lodash": "4.x"
   },
   "devDependencies": {
     "gulp": "^3.9.1",
     "gulp-coffee": "^2.3.3",
     "gulp-concat": "^2.6.1",
-    "gulp-iife-wrap": "^1.0.5",
+    "gulp-umd-wrap": "^1.0.7",
     "gulp-plumber": "^1.1.0",
     "gulp-preprocess": "^2.0.0",
-    "jasmine": "^2.5.2",
+    "jasmine": "^2.5.3",
     "preprocess": "^3.1.0",
     "del": "^2.2.2",
     "coffee-script": "^1.12.2",
-    "coffee-concerns": "^1.0.8",
-    "publisher-subscriber": "^1.0.11"
+    "coffee-concerns": "^1.0.10",
+    "publisher-subscriber": "^1.0.12"
   },
   "scripts": {
     "test": "gulp build coffeespec && jasmine && rm -rf spec"

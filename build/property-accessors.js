@@ -1,18 +1,23 @@
+
+/*!
+ * property-accessors 1.0.13 | https://github.com/yivo/property-accessors | MIT License
+ */
+
 (function() {
   var extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
     hasProp = {}.hasOwnProperty;
 
   (function(factory) {
-    var root;
-    root = typeof self === 'object' && self !== null && self.self === self ? self : typeof global === 'object' && global !== null && global.global === global ? global : void 0;
+    var __root__;
+    __root__ = typeof self === 'object' && self !== null && self.self === self ? self : typeof global === 'object' && global !== null && global.global === global ? global : Function('return this')();
     if (typeof define === 'function' && typeof define.amd === 'object' && define.amd !== null) {
-      define(['lodash', 'exports'], function(_) {
-        return root.PropertyAccessors = factory(root, Object, Error, TypeError, _);
+      define(['lodash'], function(_) {
+        return __root__.PropertyAccessors = factory(__root__, Object, Error, TypeError, _);
       });
     } else if (typeof module === 'object' && module !== null && typeof module.exports === 'object' && module.exports !== null) {
-      module.exports = factory(root, Object, Error, TypeError, require('lodash'));
+      module.exports = factory(__root__, Object, Error, TypeError, require('lodash'));
     } else {
-      root.PropertyAccessors = factory(root, Object, Error, TypeError, root._);
+      __root__.PropertyAccessors = factory(__root__, Object, Error, TypeError, _);
     }
   })(function(__root__, Object, Error, TypeError, _) {
     var AbstractProperty, InstanceProperty, PA, PrototypeProperty, defineComputedProperty, defineProperty;
@@ -287,7 +292,7 @@
       };
     })(_);
     return PA = {
-      VERSION: '1.0.11',
+      VERSION: '1.0.13',
       define: defineProperty,
       computed: defineComputedProperty,
       comparator: _.isEqual,
