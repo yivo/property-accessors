@@ -13,7 +13,7 @@
     "gulp-umd-wrap": "^1.0.7",
     "gulp-plumber": "^1.1.0",
     "gulp-preprocess": "^2.0.0",
-    "jasmine": "^2.5.3",
+    "jasmine": "^2.7.0",
     "preprocess": "^3.1.0",
     "del": "^2.2.2",
     "coffee-script": "^1.12.2",
