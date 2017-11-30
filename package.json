@@ -16,7 +16,7 @@
     "jasmine": "^2.5.3",
     "preprocess": "^3.1.0",
     "del": "^2.2.2",
-    "coffee-script": "^1.12.2",
+    "coffee-script": "^1.12.8",
     "coffee-concerns": "^1.0.10",
     "publisher-subscriber": "^1.0.12"
   },
