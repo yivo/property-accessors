@@ -4,7 +4,7 @@
   "description": "Nice Object.defineProperty",
   "main": "build/property-accessors.js",
   "dependencies": {
-    "lodash": "4.x"
+    "lodash": "^4.17.15"
   },
   "devDependencies": {
     "gulp": "^3.9.1",
