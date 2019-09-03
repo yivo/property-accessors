@@ -12,7 +12,7 @@
     "gulp-concat": "^2.6.1",
     "gulp-umd-wrap": "^1.0.7",
     "gulp-plumber": "^1.1.0",
-    "gulp-preprocess": "^2.0.0",
+    "gulp-preprocess": "^3.0.3",
     "jasmine": "^2.5.3",
     "preprocess": "^3.1.0",
     "del": "^2.2.2",
